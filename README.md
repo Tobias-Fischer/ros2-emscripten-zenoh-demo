@@ -1,6 +1,6 @@
 # ROS 2 in the browser: emscripten-wasm32 + rmw_zenoh_pico
 
-**[Live demo site →](https://tobias-fischer.github.io/ros2-emscripten-zenoh-demo/)**
+**[Live demo site →](https://www.tobiasfischer.info/ros2-emscripten-zenoh-demo/)**
 
 Two WebAssembly ROS 2 talkers — one in C (`rclc`), one in Python (`rclpy`) —
 running with real pthreads in an actual browser, publishing
@@ -100,8 +100,10 @@ builds fine). Not upstreamed — a real codegen fix, out of scope here.
 
 ## The site (`site/`)
 
-[GitHub Pages](https://tobias-fischer.github.io/ros2-emscripten-zenoh-demo/)
-site, deployed by [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
+[GitHub Pages](https://www.tobiasfischer.info/ros2-emscripten-zenoh-demo/)
+site (this account has an account-level custom domain configured, so
+`tobias-fischer.github.io/ros2-emscripten-zenoh-demo/` redirects there
+rather than serving directly), deployed by [`.github/workflows/pages.yml`](.github/workflows/pages.yml)
 from the `site/` directory on every push to `main`. It hosts the same two
 talkers from `browser_demo/` (built and copied in by hand for now — the
 `.wasm`/`.js`/`.so` files under `site/assets/` are committed binaries, not
