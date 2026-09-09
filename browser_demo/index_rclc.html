@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>wasm32 rclc + rmw_zenoh_pico talker</title></head>
+<body>
+<h1>wasm32 rclc talker (rmw_zenoh_pico)</h1>
+<pre id="log" style="white-space:pre-wrap;"></pre>
+<script>
+  const logEl = document.getElementById('log');
+  var Module = {
+    print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
+    printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
+    // zenohd's ws/ listener does a plain upgrade with no Sec-WebSocket-Protocol
+    // negotiation. Emscripten's socket layer defaults to requesting the
+    // "binary" subprotocol; RFC 6455 requires a client to fail the connection
+    // if the server doesn't echo back a subprotocol it offered, which real
+    // browsers enforce (curl does not, which is why a plain curl handshake
+    // looked fine). subprotocol: null skips requesting one entirely.
+    websocket: { subprotocol: null },
+  };
+</script>
+<script src="talker_rclc.js"></script>
+</body>
+</html>
