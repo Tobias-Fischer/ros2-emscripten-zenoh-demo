@@ -1,0 +1,17 @@
+[workspace]
+name = "browser-demo-build"
+description = "Emscripten toolchain for linking the wasm32 talkers in this directory — no micromamba, no manual SDK install."
+channels = ["https://repo.prefix.dev/emscripten-forge-4x", "conda-forge"]
+# emscripten_emscripten-wasm32 publishes for both; add more here if you build
+# on a different host platform.
+platforms = ["osx-arm64", "linux-64"]
+
+[dependencies]
+# Pinned to match the exact toolchain build ros-rolling's own
+# `pixi run build-emscripten` uses (see its pixi.toml / conda_build_config.yaml
+# c_compiler_version / cxx_compiler_version) — keep these in sync.
+emscripten_emscripten-wasm32 = "==4.0.9"
+
+[tasks]
+build-rclc = "bash build_rclc.sh"
+build-rclpy = "bash build_rclpy.sh"

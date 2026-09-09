@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
+# Run via `pixi run build-rclc` (from this directory) so `em++` is on PATH —
+# see pixi.toml. Needs demo_env/ assembled first (see ../docs/demo_env.md).
 set -eo pipefail
 
 DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="$DEMO_DIR/../demo_env"
-BUILD_ENV=/private/tmp/zenoh-emsdk-env
+
+command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run build-rclc', not directly." >&2; exit 1; }
 
 mkdir -p "$DEMO_DIR/out"
 
@@ -32,7 +35,7 @@ for d in "$PREFIX"/include/*/; do
   INCLUDE_FLAGS+=(-I"${d%/}")
 done
 
-micromamba run -p "$BUILD_ENV" em++ \
+em++ \
   -std=c11 -pthread -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
   "${INCLUDE_FLAGS[@]}" \
