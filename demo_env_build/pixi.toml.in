@@ -1,0 +1,35 @@
+### Template — see build.sh, which renders this into ./pixi.toml.
+### Not used directly: pixi.toml needs the two local rattler-build output
+### channels substituted in (their paths vary between local dev and CI).
+[workspace]
+name = "demo-env-build"
+channels = [
+  "file://@ROS_ROLLING_OUTPUT@",
+  "file://@EMSCRIPTEN_FORGE_OUTPUT@",
+  "https://repo.prefix.dev/conda-forge",
+  "https://repo.prefix.dev/emscripten-forge-4x",
+  "microsoft",
+  "robostack-staging",
+]
+platforms = ["emscripten-wasm32"]
+# ros2-rclpy needs pyyaml, which conda-forge's noarch-eligible build shadows
+# with a "yaml" host dep that doesn't exist on any channel here — same fix
+# ros-rolling's own `pixi run build-emscripten` task needs and documents.
+channel-priority = "disabled"
+
+[dependencies]
+ros2-rclcpp = "*"
+ros2-rclc = "*"
+ros2-rclpy = "*"
+ros2-rmw-zenoh-pico = "*"
+ros2-std-msgs = "*"
+ros2-rcutils = "*"
+# Pin to the version ros-rolling's own recipe builds (its own local channel,
+# listed first above, shadows emscripten-forge-4x's newer 1.10.1 — but only
+# once a matching version constraint stops the solver reaching past it).
+zenoh-pico = "1.4.0.*"
+# Runtime link deps for the custom pthreads CPython's statically-linked
+# _ctypes/_lzma modules (build-time-only deps of the python recipe itself,
+# so they don't come along transitively — see ../patches/README.md).
+libffi = "*"
+xz = "*"

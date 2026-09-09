@@ -1,0 +1,22 @@
+--- a/rclpy/node.py
++++ b/rclpy/node.py
+@@ -206,7 +206,9 @@
+ 
+         self._parameter_event_publisher: Optional[BasePublisher[ParameterEvent]] = \
+             self.create_publisher(ParameterEvent, '/parameter_events',
+-                                  qos_profile_parameter_events)
++                                  qos_profile_parameter_events,
++                                  event_callbacks=PublisherEventCallbacks(
++                                      use_default_callbacks=False))
+ 
+         with self.handle:
+             self._parameter_overrides = self.handle.get_parameters(Parameter)
+@@ -236,7 +238,7 @@
+         if enable_logger_service:
+             self._logger_service = LoggingService(self)
+ 
+-        self._type_description_service = TypeDescriptionService(self)
++        self._type_description_service = None
+ 
+         self._context.track_node(self)
+ 

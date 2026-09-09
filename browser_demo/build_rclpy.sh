@@ -5,8 +5,8 @@ set -eo pipefail
 
 DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PREFIX="$DEMO_DIR/../demo_env"
-PY="$PREFIX/python3.13-pthread"
-SP="$PY/site-packages-rclpy"
+PY="$PREFIX"
+SP="$PREFIX/lib/python3.13/site-packages"
 
 command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run build-rclpy', not directly." >&2; exit 1; }
 
@@ -67,7 +67,7 @@ LIBS=(
   "$SP/numpy/random/_mt19937.cpython-313-wasm32-emscripten.so"
 )
 
-INCLUDE_FLAGS=(-I"$PREFIX/include" -I"$PY/include/python3.13")
+INCLUDE_FLAGS=(-I"$PREFIX/include")
 for d in "$PREFIX"/include/*/; do
   INCLUDE_FLAGS+=(-I"${d%/}")
 done
@@ -89,7 +89,6 @@ em++ \
   -s STACK_SIZE=5MB -s DEFAULT_PTHREAD_STACK_SIZE=5MB \
   -s INITIAL_MEMORY=67108864 -s MAXIMUM_MEMORY=1024MB \
   --embed-file "$PY/lib/python3.13@/pyhome/lib/python3.13" \
-  --embed-file "$SP@/pyhome/site-packages" \
   --embed-file "$DEMO_DIR/talker_rclpy.py@/pyhome/talker_rclpy.py" \
   -L"$PY/lib" \
   -L"$PREFIX/lib" \

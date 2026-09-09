@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
 
   int rc = PyRun_SimpleString(
     "import sys\n"
-    "sys.path.insert(0, '/pyhome/site-packages')\n"
+    "sys.path.insert(0, '/pyhome/lib/python3.13/site-packages')\n"
     "exec(open('/pyhome/talker_rclpy.py').read())\n"
   );
   printf("rclpy_boot: PyRun_SimpleString rc=%d\n", rc);
