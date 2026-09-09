@@ -58,6 +58,15 @@
         setStatus(card, "error", "aborted");
         appendLine(consoleEl, "[aborted] " + what, true);
       },
+      onExit: (code) => {
+        if (code === 0) {
+          setStatus(card, "idle", "exited cleanly — no router was reachable to keep it alive");
+          appendLine(consoleEl, "[exited 0] no zenoh router reachable — start one and reload to see continuous publishing", false);
+        } else {
+          setStatus(card, "error", "exited with code " + code);
+          appendLine(consoleEl, "[exited " + code + "]", true);
+        }
+      },
     };
 
     const s = document.createElement("script");

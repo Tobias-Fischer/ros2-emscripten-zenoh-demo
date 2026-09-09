@@ -197,6 +197,8 @@ p.section-lede { color: var(--text-dim); max-width: 700px; }
   color: var(--text-dim);
 }
 .setup-box b { color: var(--text); }
+.setup-box p { margin: 0; }
+.setup-box details summary::marker { color: var(--accent); }
 .setup-box pre {
   margin: 10px 0 0;
   padding: 10px 12px;

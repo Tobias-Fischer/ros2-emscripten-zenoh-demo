@@ -54,6 +54,7 @@
       <div class="arch-item"><span class="num">01</span><div class="body"><b>Threads.</b> Emscripten's libc++ needs a real OS-style thread to ever wake a blocked <code>condition_variable</code> — so every package here is built with actual wasm32 threads (<code>-pthread</code>, <code>SharedArrayBuffer</code>), not the single-threaded default.</div></div>
       <div class="arch-item"><span class="num">02</span><div class="body"><b>Transport.</b> <code>rmw_zenoh_pico</code> gives ROS 2's standard <code>rcl</code>/<code>rclcpp</code>/<code>rclpy</code> layers a wasm-friendly RMW backed by zenoh-pico's WebSocket transport — talking to a normal <code>zenohd</code> router, not a custom protocol.</div></div>
       <div class="arch-item"><span class="num">03</span><div class="body"><b>Python.</b> Stock <code>emscripten-forge</code> Python isn't pthread-enabled. This demo uses a custom CPython (<code>--enable-wasm-pthreads</code>) and a pthreads-patched <code>numpy</code>, with every extension module registered ahead-of-time via <code>PyImport_AppendInittab</code> instead of relying on runtime <code>dlopen</code>.</div></div>
+      <div class="arch-item"><span class="num">04</span><div class="body"><b>Not just browsers.</b> <code>zenoh-pico</code> and <code>rmw_zenoh_pico</code> exist to put ROS 2 on genuinely constrained targets — microcontrollers talking micro-ROS over UART, BLE, or serial, the same niche as the ESP32/STM32-class boards this stack was originally built for. Wasm32 is really just one more "small, sandboxed target" for the exact same lightweight client; the C talker below would cross-compile to an actual microcontroller with far fewer changes than it took to get it running in a browser tab.</div></div>
     </div>
   </section>
 
@@ -62,21 +63,36 @@
     <h3 class="section-title">Run them yourself</h3>
     <p class="section-lede">
       Both demos publish a ROS 2 topic once a second from inside a wasm32
-      sandbox running in this tab. To actually see messages flow you need a
-      zenoh router on your machine — the wasm build connects to
-      <code>127.0.0.1:7447</code> (a loopback address, so your browser will
-      let an https page reach it even without a certificate). Without a
-      router running, you'll still see the node boot, initialize rcl, and
-      retry the connection — which already proves the compiled binary itself
-      works.
+      sandbox running in this tab — but only once they can actually reach a
+      zenoh router: the wasm build connects to <code>127.0.0.1:7447</code> (a
+      loopback address, so your browser will let an https page reach it even
+      without a certificate). <b>Start the router below first</b>, then click
+      "Run demo" — without one reachable, the node still boots and attempts
+      the connection (visible in the console), but exits shortly after
+      rather than looping.
     </p>
 
     <div class="setup-box">
-      <b>One-time setup — run a local zenoh router:</b>
-      <pre>gh release download 1.10.1 --repo eclipse-zenoh/zenoh --pattern "*&lt;your-platform&gt;-standalone.zip"
+      <b>Do this first — run a local zenoh router the ROS 2&nbsp;way:</b>
+      <p style="margin:8px 0 0;">The router is a normal <code>ros2 run</code> command
+      (<code>rmw_zenoh_cpp</code> ships it as <code>rmw_zenohd</code>) — install it with
+      <a href="https://pixi.sh/" target="_blank" rel="noopener">pixi</a> like any other
+      RoboStack package, no manual binary download needed:</p>
+      <pre>pixi init zenoh-router &amp;&amp; cd zenoh-router
+pixi add -c robostack-staging -c conda-forge ros-humble-rmw-zenoh-cpp
+pixi run ros2 run rmw_zenoh_cpp rmw_zenohd</pre>
+      <p style="margin:10px 0 0;">(<code>rmw_zenohd</code> just starts a router process — it
+      works regardless of which ROS distro your own nodes use. <code>robostack-staging</code>
+      only has a <code>humble</code> build of the package today; a <code>rolling</code> one
+      isn't published yet.)</p>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; color:var(--text-dim);">No ROS/pixi installed? Run the standalone zenohd binary instead</summary>
+        <pre style="margin-top:10px;">gh release download 1.10.1 --repo eclipse-zenoh/zenoh --pattern "*&lt;your-platform&gt;-standalone.zip"
 unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
 ./zenohd -l tcp/127.0.0.1:7448 -l ws/127.0.0.1:7447 --no-multicast-scouting</pre>
-      Then just click "Run demo" below — no page reload needed once <code>zenohd</code> is up.
+      </details>
+      <p style="margin:12px 0 0;">Either way: once the router's up, just click "Run demo"
+      below — no page reload needed.</p>
     </div>
 
     <div class="demo-card" data-demo="rclc">
