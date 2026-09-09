@@ -10,6 +10,22 @@ command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run 
 
 mkdir -p "$DEMO_DIR/out"
 
+# Not derived from any manifest or dependency-graph tool — found empirically,
+# the only real option given the architecture. -sMAIN_MODULE=2 means em++
+# only resolves symbols against .so files actually passed on the command
+# line (no implicit transitive pull-in the way a native linker's rpath/soname
+# resolution would give you); passing a .so this way *also* stages it next
+# to the output for the runtime's dylink loader to dlopen on demand (that's
+# why there's no separate `cp` step here, unlike build_rclpy.sh). Regenerate
+# by starting from just talker_rclc.c's direct includes (rclc, rmw_zenoh_pico)
+# and iterating: link/run, and for every "unable to find library -lX" from
+# wasm-ld or a 404 fetching X.so from the browser console, add
+# lib/libX.so and retry -- until it both links and runs end-to-end
+# against a real zenoh router with no further errors. Some entries below
+# turned out not to be strictly required at *link* time (removing one and
+# relinking can succeed) but are still needed for the *runtime* dylink
+# closure another .so pulls in lazily -- link success alone doesn't confirm
+# an entry is safe to drop, only a full run does.
 LIBS=(
   "$PREFIX/lib/librclc.so"
   "$PREFIX/lib/librcl.so"

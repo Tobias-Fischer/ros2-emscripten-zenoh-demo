@@ -1,0 +1,190 @@
+name: Build and deploy demo site
+
+# Everything the live site needs — the two wasm32 talkers and the
+# JupyterLite notebook — is built fresh here and deployed straight to
+# GitHub Pages via actions/deploy-pages. Nothing generated is ever
+# committed: site/ holds only hand-written source (index.html, style.css,
+# demo.js, coi-serviceworker.js), and jupyterlite-content/ holds only the
+# one notebook. No gh-pages/_site branch either — the modern Actions-based
+# Pages deploy publishes straight from a build artifact, with GitHub
+# managing the deployment (see the repo's Settings > Environments >
+# github-pages, and the Deployments tab) rather than any branch you'd browse.
+#
+# A cold run rebuilds the full ~230-package ros-rolling emscripten-wasm32
+# closure from source, which can take a couple of hours; actions/cache
+# keyed on the recipe/patch inputs makes every run after the first one, for
+# unrelated changes (e.g. editing site/index.html), fast — the ROS package
+# and pthreads-python/numpy builds hit cache and skip straight to relinking
+# the talkers and rebuilding the (small, fast) JupyterLite notebook.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ros_rolling_ref:
+        description: "ros-rolling source to build (fork@branch)"
+        default: "Tobias-Fischer/ros-rolling@feature/emscripten-wasm32-zenoh-pico"
+        required: false
+      recipes_ref:
+        description: "emscripten-forge-recipes source, pthreads python/numpy (fork@branch)"
+        default: "Tobias-Fischer/emscripten-forge-recipes@wasm-pthreads-python-numpy-orphan"
+        required: false
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "jupyterlite-content/**"
+      - "browser_demo/**"
+      - "demo_env_build/**"
+      - "patches/**"
+      - ".github/workflows/deploy.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: demo-repo
+
+      - name: Parse source refs
+        id: refs
+        run: |
+          ros_ref="${{ inputs.ros_rolling_ref || 'Tobias-Fischer/ros-rolling@feature/emscripten-wasm32-zenoh-pico' }}"
+          rec_ref="${{ inputs.recipes_ref || 'Tobias-Fischer/emscripten-forge-recipes@wasm-pthreads-python-numpy-orphan' }}"
+          echo "ros_repo=${ros_ref%@*}" >> "$GITHUB_OUTPUT"
+          echo "ros_branch=${ros_ref#*@}" >> "$GITHUB_OUTPUT"
+          echo "rec_repo=${rec_ref%@*}" >> "$GITHUB_OUTPUT"
+          echo "rec_branch=${rec_ref#*@}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.refs.outputs.rec_repo }}
+          ref: ${{ steps.refs.outputs.rec_branch }}
+          path: emscripten-forge-recipes
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.refs.outputs.ros_repo }}
+          ref: ${{ steps.refs.outputs.ros_branch }}
+          path: ros-rolling
+
+      - uses: prefix-dev/setup-pixi@v0.10.2
+
+      # ---- pthreads CPython + numpy -------------------------------------
+      - uses: actions/cache@v4
+        id: recipes-cache
+        with:
+          path: emscripten-forge-recipes/output
+          key: emscripten-forge-recipes-output-${{ hashFiles('emscripten-forge-recipes/recipes/recipes_emscripten/python/**', 'emscripten-forge-recipes/recipes/recipes_emscripten/numpy/**', 'emscripten-forge-recipes/recipes/recipes/cross-python_emscripten-wasm32/**') }}
+
+      - name: Build pthreads python + numpy (wasm32)
+        working-directory: emscripten-forge-recipes
+        run: |
+          if ! ls output/emscripten-wasm32/python-3.13.1-*.tar.bz2 >/dev/null 2>&1; then
+            pixi run -e rattler-build-env build-emscripten-wasm32-pkg recipes/recipes_emscripten/python
+          else
+            echo "python already built (cache hit), skipping"
+          fi
+          # Not run via the build-emscripten-wasm32-pkg task: that task's
+          # cmd doesn't pass --test skip, and this recipe's own pytester
+          # test loads the .so in a non-pthread harness and fails there on
+          # purpose -- unrelated to whether the build itself worked
+          # (see docs/demo_env.md in the main repo).
+          if ! ls output/emscripten-wasm32/numpy-2.5.3-*.tar.bz2 >/dev/null 2>&1; then
+            pixi run -e rattler-build-env rattler-build build \
+              --package-format tar-bz2 \
+              -c https://repo.prefix.dev/emscripten-forge-4x -c microsoft -c conda-forge \
+              -c "file://$(pwd)/output" \
+              --target-platform emscripten-wasm32 --skip-existing none -m variant.yaml \
+              --test skip \
+              --recipe recipes/recipes_emscripten/numpy
+          else
+            echo "numpy already built (cache hit), skipping"
+          fi
+
+      # ---- ros-rolling emscripten-wasm32 + rmw_zenoh_pico closure -------
+      - uses: actions/cache@v4
+        with:
+          path: ros-rolling/output
+          key: ros-rolling-emscripten-output-${{ hashFiles('ros-rolling/vinca.yaml', 'ros-rolling/robostack.yaml', 'ros-rolling/patch/**', 'ros-rolling/pkg_additional_info.yaml', 'ros-rolling/rosdistro_snapshot.yaml', 'ros-rolling/vinca_pinning.yaml', 'ros-rolling/conda_build_config.yaml', 'ros-rolling/pixi.toml') }}
+
+      - name: Build the full emscripten-wasm32 + rmw_zenoh_pico closure
+        working-directory: ros-rolling
+        run: pixi run build-emscripten
+
+      # rosidl_typesupport_microxrcedds_cpp's codegen gap (see the main
+      # repo README's Known limitations): these 3 packages need the C-only
+      # typesupport backend specifically for rmw_zenoh_pico, which the
+      # single global env var above can't express -- always force-rebuilt,
+      # same invocation documented in docs/demo_env.md.
+      - name: Rebuild rcl_interfaces/type_description_interfaces/service_msgs (C-only typesupport)
+        working-directory: ros-rolling
+        env:
+          VINCA_EMSCRIPTEN_RMW_IMPLEMENTATION: rmw_zenoh_pico
+          VINCA_EMSCRIPTEN_STATIC_TYPESUPPORT_C: rosidl_typesupport_microxrcedds_c
+        run: |
+          for pkg in rcl-interfaces type-description-interfaces service-msgs; do
+            pixi run rattler-build build \
+              --package-format tar-bz2 \
+              --recipe "./recipes/ros2-${pkg}/recipe.yaml" \
+              -m ./conda_build_config.yaml \
+              -c https://repo.prefix.dev/conda-forge \
+              -c https://repo.prefix.dev/emscripten-forge-4x \
+              -c "file://${GITHUB_WORKSPACE}/emscripten-forge-recipes/output" \
+              -c microsoft \
+              --target-platform emscripten-wasm32 \
+              --skip-existing none --test skip --channel-priority disabled
+          done
+
+      # ---- assemble demo_env, link both talkers --------------------------
+      - name: Assemble demo_env
+        env:
+          ROS_ROLLING_OUTPUT: ${{ github.workspace }}/ros-rolling/output
+          EMSCRIPTEN_FORGE_OUTPUT: ${{ github.workspace }}/emscripten-forge-recipes/output
+        run: ./demo-repo/demo_env_build/build.sh
+
+      - name: Build both talkers
+        working-directory: demo-repo/browser_demo
+        run: |
+          pixi run build-rclc
+          pixi run build-rclpy
+
+      # ---- build the JupyterLite notebook site ---------------------------
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build JupyterLite
+        run: |
+          python3 -m venv .venv-jlite
+          .venv-jlite/bin/pip install -r demo-repo/jupyterlite-content/requirements.txt
+          mkdir -p _jlite_build/content
+          cp demo-repo/jupyterlite-content/demo.ipynb _jlite_build/content/
+          cd _jlite_build
+          ../.venv-jlite/bin/jupyter lite init
+          ../.venv-jlite/bin/jupyter lite build --contents content/
+
+      # ---- assemble and deploy --------------------------------------------
+      - name: Assemble Pages payload
+        run: |
+          mkdir -p _pages/assets
+          cp demo-repo/site/index.html demo-repo/site/style.css demo-repo/site/demo.js demo-repo/site/coi-serviceworker.js _pages/
+          find demo-repo/browser_demo/out -maxdepth 1 -type f ! -name '*.html' -exec cp {} _pages/assets/ \;
+          cp -r _jlite_build/_output _pages/jupyterlite
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _pages
+      - id: deployment
+        uses: actions/deploy-pages@v4

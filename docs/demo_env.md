@@ -47,7 +47,7 @@ pixi run rattler-build build \
   -m ./conda_build_config.yaml \
   -c https://repo.prefix.dev/conda-forge -c https://repo.prefix.dev/emscripten-forge-4x \
   -c file:///path/to/emscripten-forge-recipes/output \
-  -c microsoft -c robostack-staging \
+  -c microsoft \
   --target-platform emscripten-wasm32 --skip-existing none --test skip --channel-priority disabled
 ```
 
@@ -74,7 +74,17 @@ git clone --branch wasm-pthreads-python-numpy-orphan --single-branch \
   https://github.com/Tobias-Fischer/emscripten-forge-recipes.git
 cd emscripten-forge-recipes
 pixi run -e rattler-build-env build-emscripten-wasm32-pkg recipes/recipes_emscripten/python
-pixi run -e rattler-build-env build-emscripten-wasm32-pkg recipes/recipes_emscripten/numpy
+# numpy needs its own direct rattler-build invocation, not the task above --
+# the task's cmd doesn't pass --test skip, and this recipe's own pytester
+# test loads the .so in a non-pthread harness and fails there on purpose,
+# unrelated to whether the build itself worked.
+pixi run -e rattler-build-env rattler-build build \
+  --package-format tar-bz2 \
+  -c https://repo.prefix.dev/emscripten-forge-4x -c microsoft -c conda-forge \
+  -c file://$(pwd)/output \
+  --target-platform emscripten-wasm32 --skip-existing none -m variant.yaml \
+  --test skip \
+  --recipe recipes/recipes_emscripten/numpy
 ```
 
 This produces its own `output/emscripten-wasm32/` with the patched

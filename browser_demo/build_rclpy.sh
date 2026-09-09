@@ -12,6 +12,12 @@ command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run 
 
 mkdir -p "$DEMO_DIR/out"
 
+# See build_rclc.sh's comment above its own LIBS array for how a list like
+# this gets found (empirically, not from a manifest) and what it actually
+# means for -sMAIN_MODULE=2. The extra entries here under $SP are the same
+# idea applied to rclpy's own Python extension modules -- found the same
+# way, but via Python ImportError/dlopen failures rather than wasm-ld's
+# link-time errors.
 LIBS=(
   "$PREFIX/lib/librclc.so"
   "$PREFIX/lib/librcl.so"
