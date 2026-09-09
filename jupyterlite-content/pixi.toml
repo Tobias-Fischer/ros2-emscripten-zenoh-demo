@@ -1,0 +1,13 @@
+[workspace]
+name = "jupyterlite-build"
+description = "Builds the JupyterLite static site from demo.ipynb — see ../.github/workflows/deploy.yml."
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[dependencies]
+jupyterlite-core = "0.8.3.*"
+jupyterlite-pyodide-kernel = "0.8.5.*"
+jupyter_server = "2.21.0.*"
+
+[tasks]
+build = { cmd = "jupyter lite init && jupyter lite build --contents content" }

@@ -85,6 +85,25 @@ jobs:
         with:
           run-install: false
 
+      # Shared conda/rattler package download cache -- every pixi.toml in
+      # this job (emscripten-forge-recipes, ros-rolling, browser_demo,
+      # demo_env_build, jupyterlite-content) pulls from the same
+      # ~/.cache/rattler regardless of which project triggered the
+      # download, so one cache entry benefits all of them. Keyed on the run
+      # id with a prefix restore-key so each run restores the most recent
+      # cache (fast) and saves a new one capturing anything newly
+      # downloaded -- the two output/ caches below are what actually skip
+      # rebuilds; this one just avoids re-fetching the same packages from
+      # conda-forge/emscripten-forge-4x every time.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/rattler
+            ~/.rattler
+          key: rattler-pkgcache-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            rattler-pkgcache-${{ runner.os }}-
+
       # ---- pthreads CPython + numpy -------------------------------------
       - uses: actions/cache@v4
         id: recipes-cache
@@ -118,6 +137,16 @@ jobs:
           fi
 
       # ---- ros-rolling emscripten-wasm32 + rmw_zenoh_pico closure -------
+      # ros-rolling's own pixi.toml build-emscripten task hardcodes
+      # file:///tmp/emscripten_forge_recipes/output as one of its channels
+      # (a fixed local-dev path from when this pipeline was first put
+      # together) -- satisfy it with a symlink rather than depend on that
+      # path existing verbatim on the runner.
+      - name: Link emscripten-forge-recipes output to the path ros-rolling expects
+        run: |
+          mkdir -p /tmp/emscripten_forge_recipes
+          ln -sfn "${{ github.workspace }}/emscripten-forge-recipes/output" /tmp/emscripten_forge_recipes/output
+
       - uses: actions/cache@v4
         with:
           path: ros-rolling/output
@@ -165,18 +194,12 @@ jobs:
           pixi run build-rclpy
 
       # ---- build the JupyterLite notebook site ---------------------------
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
       - name: Build JupyterLite
+        working-directory: demo-repo/jupyterlite-content
         run: |
-          python3 -m venv .venv-jlite
-          .venv-jlite/bin/pip install -r demo-repo/jupyterlite-content/requirements.txt
-          mkdir -p _jlite_build/content
-          cp demo-repo/jupyterlite-content/demo.ipynb _jlite_build/content/
-          cd _jlite_build
-          ../.venv-jlite/bin/jupyter lite init
-          ../.venv-jlite/bin/jupyter lite build --contents content/
+          mkdir -p content
+          cp demo.ipynb content/
+          pixi run build
 
       # ---- assemble and deploy --------------------------------------------
       - name: Assemble Pages payload
@@ -184,7 +207,7 @@ jobs:
           mkdir -p _pages/assets
           cp demo-repo/site/index.html demo-repo/site/style.css demo-repo/site/demo.js demo-repo/site/coi-serviceworker.js _pages/
           find demo-repo/browser_demo/out -maxdepth 1 -type f ! -name '*.html' -exec cp {} _pages/assets/ \;
-          cp -r _jlite_build/_output _pages/jupyterlite
+          cp -r demo-repo/jupyterlite-content/_output _pages/jupyterlite
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _pages
