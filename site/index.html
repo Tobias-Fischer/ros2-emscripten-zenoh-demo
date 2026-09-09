@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>ROS 2 in WebAssembly, over zenoh</title>
+<meta name="description" content="A real ROS 2 rolling rclpy node — pthreads, numpy, and all — compiled to wasm32 and talking to zenoh, running live in your browser." />
+<link rel="stylesheet" href="style.css" />
+<script>window.__coiServiceWorkerUrl = "coi-serviceworker.js";</script>
+<script src="coi-serviceworker.js"></script>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="hero">
+    <div class="eyebrow"><span class="dot"></span> ROS 2 rolling · emscripten-wasm32 · rmw_zenoh_pico</div>
+    <h1 class="title">A real ROS 2 node,<br/><span class="grad">compiled to WebAssembly.</span></h1>
+    <p class="lede">
+      Not a JavaScript re-implementation, not a bridge to a native process
+      running somewhere else — an actual <code>rclpy</code> node, with real
+      pthreads, real numpy, and a real CPython interpreter, cross-compiled to
+      wasm32 and speaking <a href="https://zenoh.io/" target="_blank" rel="noopener">zenoh</a>
+      from inside your browser tab.
+    </p>
+    <div class="hero-links">
+      <a class="btn primary" href="#demos">Try the live demos ↓</a>
+      <a class="btn" href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo" target="_blank" rel="noopener">GitHub repo</a>
+      <a class="btn" href="#sources">Sources &amp; PRs</a>
+    </div>
+  </header>
+
+  <section id="what">
+    <h2 class="h">What this is</h2>
+    <h3 class="section-title">Cross-compiling the actual ROS 2 stack, not a lookalike</h3>
+    <p class="section-lede">
+      Most "ROS 2 in the browser" demos work by running a JavaScript client
+      (<code>roslibjs</code>) that speaks the <code>rosbridge_websocket</code>
+      protocol to a normal, native ROS 2 process running elsewhere — the
+      browser never runs any ROS 2 code itself. This is different: every
+      binary here was built by
+      <a href="https://github.com/RoboStack/ros-rolling" target="_blank" rel="noopener">RoboStack</a>'s
+      conda-based ROS 2 build pipeline, targeting <code>emscripten-wasm32</code>
+      as a first-class platform, and runs entirely client-side.
+    </p>
+    <div class="pillrow">
+      <span class="pill">rclc &amp; rclcpp</span>
+      <span class="pill">rclpy + numpy</span>
+      <span class="pill">real pthreads (SharedArrayBuffer)</span>
+      <span class="pill">rmw_zenoh_pico</span>
+      <span class="pill">zenoh over WebSocket</span>
+      <span class="pill">~230 packages cross-built</span>
+    </div>
+    <div class="arch-list">
+      <div class="arch-item"><span class="num">01</span><div class="body"><b>Threads.</b> Emscripten's libc++ needs a real OS-style thread to ever wake a blocked <code>condition_variable</code> — so every package here is built with actual wasm32 threads (<code>-pthread</code>, <code>SharedArrayBuffer</code>), not the single-threaded default.</div></div>
+      <div class="arch-item"><span class="num">02</span><div class="body"><b>Transport.</b> <code>rmw_zenoh_pico</code> gives ROS 2's standard <code>rcl</code>/<code>rclcpp</code>/<code>rclpy</code> layers a wasm-friendly RMW backed by zenoh-pico's WebSocket transport — talking to a normal <code>zenohd</code> router, not a custom protocol.</div></div>
+      <div class="arch-item"><span class="num">03</span><div class="body"><b>Python.</b> Stock <code>emscripten-forge</code> Python isn't pthread-enabled. This demo uses a custom CPython (<code>--enable-wasm-pthreads</code>) and a pthreads-patched <code>numpy</code>, with every extension module registered ahead-of-time via <code>PyImport_AppendInittab</code> instead of relying on runtime <code>dlopen</code>.</div></div>
+    </div>
+  </section>
+
+  <section id="demos">
+    <h2 class="h">Live demos</h2>
+    <h3 class="section-title">Run them yourself</h3>
+    <p class="section-lede">
+      Both demos publish a ROS 2 topic once a second from inside a wasm32
+      sandbox running in this tab. To actually see messages flow you need a
+      zenoh router on your machine — the wasm build connects to
+      <code>127.0.0.1:7447</code> (a loopback address, so your browser will
+      let an https page reach it even without a certificate). Without a
+      router running, you'll still see the node boot, initialize rcl, and
+      retry the connection — which already proves the compiled binary itself
+      works.
+    </p>
+
+    <div class="setup-box">
+      <b>One-time setup — run a local zenoh router:</b>
+      <pre>gh release download 1.10.1 --repo eclipse-zenoh/zenoh --pattern "*&lt;your-platform&gt;-standalone.zip"
+unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
+./zenohd -l tcp/127.0.0.1:7448 -l ws/127.0.0.1:7447 --no-multicast-scouting</pre>
+      Then just click "Run demo" below — no page reload needed once <code>zenohd</code> is up.
+    </div>
+
+    <div class="demo-card" data-demo="rclc">
+      <div class="demo-head">
+        <div>
+          <h4>rclc talker — C</h4>
+          <p>The minimal-footprint path: <code>rclc</code>, plain C, no interpreter. ~3&nbsp;MB total.</p>
+        </div>
+        <div class="demo-meta">talker_rclc.wasm · 300 KB<br/>+ its .so deps, dlopen'd on demand</div>
+      </div>
+      <div class="demo-controls">
+        <button class="btn primary run-btn" data-demo="rclc">Run demo</button>
+        <span class="status idle"><span class="led"></span><span class="label">idle</span></span>
+      </div>
+      <pre class="console"><span class="placeholder">Console output will appear here once you click "Run demo".</span></pre>
+    </div>
+
+    <div class="demo-card" data-demo="rclpy">
+      <div class="demo-head">
+        <div>
+          <h4>rclpy talker — Python + numpy</h4>
+          <p>The full stack: a real CPython interpreter, <code>rclpy</code>, and <code>numpy</code> computing the published payload, all inside wasm32. The interpreter and <code>rclpy</code> itself are one ~51&nbsp;MB static binary (nothing Python-level is <code>dlopen</code>'d); the ROS message/RMW libraries it talks to are still loaded on demand.</p>
+        </div>
+        <div class="demo-meta">rclpy_boot.wasm · 51 MB<br/>rclpy_boot.js · 3.7 MB</div>
+      </div>
+      <div class="demo-controls">
+        <button class="btn primary run-btn" data-demo="rclpy">Run demo</button>
+        <span class="status idle"><span class="led"></span><span class="label">idle</span></span>
+      </div>
+      <pre class="console"><span class="placeholder">Console output will appear here once you click "Run demo" (first download is ~57 MB).</span></pre>
+    </div>
+
+    <p class="section-lede">
+      Want the much lighter version instead — no 57&nbsp;MB download, no
+      pthreads, just a browser talking to zenoh in the simplest way
+      possible? Try the <a href="jupyterlite/">JupyterLite notebook</a> below.
+    </p>
+  </section>
+
+  <section id="jupyterlite">
+    <h2 class="h">JupyterLite demo</h2>
+    <h3 class="section-title">The simple way in: plain HTTP, no wasm build required</h3>
+    <p class="section-lede">
+      The two demos above prove the whole compiled-wasm32-ROS-node approach
+      works — but that's a lot of machinery to read through. This notebook
+      skips all of it: it talks to <code>zenohd</code>'s built-in REST plugin
+      with a couple of lines of <code>pyodide.http</code>, straight from a
+      notebook running entirely in your browser via
+      <a href="https://jupyterlite.readthedocs.io/" target="_blank" rel="noopener">JupyterLite</a>.
+      No compiled ROS 2 code, no pthreads — the point is to show that
+      "browser talks to your ROS 2 graph through zenoh" doesn't have to be
+      complicated.
+    </p>
+    <a class="btn primary" href="jupyterlite/notebooks/index.html?path=demo.ipynb" target="_blank" rel="noopener">Open the notebook →</a>
+  </section>
+
+  <section id="limits">
+    <h2 class="h">Known limitations</h2>
+    <ul class="limits-list">
+      <li><code>rmw_zenoh_pico</code> doesn't support publisher/subscriber QoS event callbacks yet — the demo nodes disable them explicitly rather than hitting an unhandled error.</li>
+      <li>Its <code>TypeDescriptionService</code> isn't implemented either (would hang, not error) — disabled in the same way; parameter and rosout services are switched off at node construction for the same reason.</li>
+      <li><code>rosidl_typesupport_microxrcedds_cpp</code> doesn't generate typesupport for newer auto-generated service "<code>_Event</code>" messages — a handful of interface packages fall back to introspection-only typesupport, or get rebuilt with the C backend specifically where <code>rmw_zenoh_pico</code> needs it.</li>
+      <li>The wasm32 build's zenoh connect address/port is compiled in (<code>127.0.0.1:7447</code>) rather than runtime-configurable — see the setup box above.</li>
+    </ul>
+  </section>
+
+  <section id="sources">
+    <h2 class="h">Sources</h2>
+    <h3 class="section-title">Every change, upstream</h3>
+    <p class="section-lede">
+      Nothing here is a fork-and-hack — every piece needed to make this work
+      was written as a normal pull request against the project it belongs
+      to. The full write-up, with rationale for each one, lives in this
+      repo's <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo#readme" target="_blank" rel="noopener">README</a>.
+    </p>
+    <table class="sources-table">
+      <thead><tr><th>Repo</th><th>What changed</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><a href="https://github.com/RoboStack/vinca/pull/154" target="_blank" rel="noopener">vinca #154</a></td>
+          <td>RoboStack's cross-platform recipe generator: enables real wasm32 pthreads for every recipe (<code>-pthread</code>/<code>SharedArrayBuffer</code>) and fixes a <code>MODULE</code> vs. <code>SHARED</code> CMake flag mismatch that only shows up when targeting emscripten.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/RoboStack/ros-rolling/pull/46" target="_blank" rel="noopener">ros-rolling #46</a></td>
+          <td>The actual recipe pipeline change: adds <code>emscripten-wasm32</code> as a target platform for ROS 2 rolling and wires up <code>rmw_zenoh_pico</code>, producing the ~230 packages these demos are built from.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/eclipse-zenoh/zenoh-pico/pull/1314" target="_blank" rel="noopener">zenoh-pico #1314</a></td>
+          <td>Upstream fixes needed for zenoh-pico's own emscripten/wasm32 platform target to build cleanly under this pipeline's threading and linking setup.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/eclipse-zenoh/rmw_zenoh_pico/pull/7" target="_blank" rel="noopener">rmw_zenoh_pico #7</a></td>
+          <td>Fixes and gaps in the RMW layer itself, hit while getting a full <code>rclcpp</code>/<code>rclpy</code> node (not just zenoh-pico's own pub/sub API) working end-to-end.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/ros2/rosidl_typesupport_microxrcedds/pull/83" target="_blank" rel="noopener">rosidl_typesupport_microxrcedds #83</a></td>
+          <td>Typesupport codegen fixes hit while cross-building the message packages this demo depends on.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/ros2/rcutils/pull/591" target="_blank" rel="noopener">rcutils #591</a></td>
+          <td>A small fix found along the way while getting the base <code>rcl</code> stack building for emscripten-wasm32.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo" target="_blank" rel="noopener">ros2-emscripten-zenoh-demo</a></td>
+          <td>This repo: the write-up tying all of the above together, the <code>browser_demo/</code> source for both talkers, and this site.</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    Built with RoboStack, emscripten, and zenoh. Not affiliated with ros2wasm.dev.
+    <br/>
+    <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo">Source of this site</a>
+  </footer>
+</div>
+
+<script src="demo.js"></script>
+</body>
+</html>
