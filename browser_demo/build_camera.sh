@@ -67,6 +67,6 @@ em++ \
   -o "$DEMO_DIR/out/camera_rclc.js"
 
 cp "${LIBS[@]}" "$DEMO_DIR/out/"
-cp "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
+cp "$DEMO_DIR/index_camera.html" "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
 
 echo "Build finished: $DEMO_DIR/out/camera_rclc.js / camera_rclc.wasm"

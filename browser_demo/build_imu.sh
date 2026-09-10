@@ -61,6 +61,6 @@ em++ \
   -o "$DEMO_DIR/out/imu_rclc.js"
 
 cp "${LIBS[@]}" "$DEMO_DIR/out/"
-cp "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
+cp "$DEMO_DIR/index_imu.html" "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
 
 echo "Build finished: $DEMO_DIR/out/imu_rclc.js / imu_rclc.wasm"
