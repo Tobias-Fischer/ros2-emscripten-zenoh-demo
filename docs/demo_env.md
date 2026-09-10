@@ -33,12 +33,13 @@ so re-runs only rebuild what changed. Run it from the root of the
 A single `pixi run build-emscripten` isn't quite enough on its own for a
 genuinely cold checkout: several packages' generated recipes declare a
 `build:`-time dependency on a *native* (build-platform) copy of
-`rosidl_default_generators`, which no channel actually publishes for this
-platform. `pixi.toml`'s `sync-native-bootstrap-mirror` task satisfies it by
-mirroring already-built `emscripten-wasm32` packages into a fake
-`osx-arm64` channel entry — no real native build involved, but it needs
-re-running after each pass that produces new packages, so the script loops
-sync+build until a pass adds nothing new.
+`rosidl_default_generators`, which no channel actually publishes for any
+native platform. `pixi.toml`'s `sync-native-bootstrap-mirror` task
+satisfies it by mirroring already-built `emscripten-wasm32` packages into
+a fake channel entry named after whatever machine is actually running the
+build (`sync_native_bootstrap_mirror.sh` detects it — no real native build
+involved) — but it needs re-running after each pass that produces new
+packages, so the script loops sync+build until a pass adds nothing new.
 
 `rosidl_typesupport_microxrcedds_cpp`'s codegen used to not generate
 typesupport for ROS 2's auto-generated service/action "`_Event`" messages,
