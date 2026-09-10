@@ -56,7 +56,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: demo-repo
 
@@ -70,13 +70,13 @@ jobs:
           echo "rec_repo=${rec_ref%@*}" >> "$GITHUB_OUTPUT"
           echo "rec_branch=${rec_ref#*@}" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ steps.refs.outputs.rec_repo }}
           ref: ${{ steps.refs.outputs.rec_branch }}
           path: emscripten-forge-recipes
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: ${{ steps.refs.outputs.ros_repo }}
           ref: ${{ steps.refs.outputs.ros_branch }}
@@ -96,7 +96,7 @@ jobs:
       # downloaded -- the two output/ caches below are what actually skip
       # rebuilds; this one just avoids re-fetching the same packages from
       # conda-forge/emscripten-forge-4x every time.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             ~/.cache/rattler
@@ -106,7 +106,7 @@ jobs:
             rattler-pkgcache-${{ runner.os }}-
 
       # ---- pthreads CPython + numpy -------------------------------------
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: recipes-cache
         with:
           path: emscripten-forge-recipes/output
@@ -148,7 +148,7 @@ jobs:
           mkdir -p /tmp/emscripten_forge_recipes
           ln -sfn "${{ github.workspace }}/emscripten-forge-recipes/output" /tmp/emscripten_forge_recipes/output
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ros-rolling/output
           key: ros-rolling-emscripten-output-${{ hashFiles('ros-rolling/vinca.yaml', 'ros-rolling/robostack.yaml', 'ros-rolling/patch/**', 'ros-rolling/pkg_additional_info.yaml', 'ros-rolling/rosdistro_snapshot.yaml', 'ros-rolling/vinca_pinning.yaml', 'ros-rolling/conda_build_config.yaml', 'ros-rolling/pixi.toml') }}
@@ -209,8 +209,8 @@ jobs:
           # setup in docs/demo_env.md, so relative <script src="...">
           # paths resolve the same way in both places.
           cp -r demo-repo/browser_demo/out _pages/demos
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _pages
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
