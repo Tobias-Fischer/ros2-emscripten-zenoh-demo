@@ -1,0 +1,73 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>wasm32 rclc virtual robot (rmw_zenoh_pico)</title></head>
+<body>
+<h1>wasm32 rclc virtual robot (rmw_zenoh_pico)</h1>
+<p>Subscribes to <code>geometry_msgs/Twist</code> on <code>cmd_vel</code> and dead-reckons a pose from it — drive it from <a href="index_teleop.html">index_teleop.html</a> (keyboard) or <a href="index_imu.html">index_imu.html</a> (phone tilt), open in another tab or device.</p>
+<canvas id="view" width="500" height="500" style="border:1px solid #888;"></canvas>
+<pre id="log" style="white-space:pre-wrap;"></pre>
+<script>
+  const logEl = document.getElementById('log');
+  var Module = {
+    print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
+    printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
+    // See index_rclc.html for why this is needed.
+    websocket: { subprotocol: null },
+  };
+
+  const canvas = document.getElementById('view');
+  const ctx = canvas.getContext('2d');
+  const PIXELS_PER_METRE = 60; // how far the robot has to drive to visibly move
+
+  // Every earlier (x, y) so the path traveled stays visible, not just the
+  // current position -- capped so a long-running tab doesn't leak memory.
+  const trail = [];
+  const MAX_TRAIL_POINTS = 2000;
+
+  function drawRobot(x, y, theta) {
+    const cx = canvas.width / 2 + x * PIXELS_PER_METRE;
+    const cy = canvas.height / 2 - y * PIXELS_PER_METRE; // screen y is flipped vs. a normal x/y plane
+
+    trail.push([cx, cy]);
+    if (trail.length > MAX_TRAIL_POINTS) trail.shift();
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Trail.
+    ctx.strokeStyle = '#bbb';
+    ctx.beginPath();
+    trail.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
+    ctx.stroke();
+
+    // Robot: a triangle pointing in the direction of theta (screen y
+    // flipped, so negate the y components of the heading too).
+    const size = 14;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-theta);
+    ctx.fillStyle = '#2a6fdb';
+    ctx.beginPath();
+    ctx.moveTo(size, 0);
+    ctx.lineTo(-size * 0.7, size * 0.6);
+    ctx.lineTo(-size * 0.7, -size * 0.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  Module.onRuntimeInitialized = () => {
+    const posePtr = Module.ccall('robot_view_get_pose_ptr', 'number', [], []);
+    const xIndex = posePtr >> 3;
+    const yIndex = xIndex + 1;
+    const thetaIndex = xIndex + 2;
+
+    function frame() {
+      drawRobot(Module.HEAPF64[xIndex], Module.HEAPF64[yIndex], Module.HEAPF64[thetaIndex]);
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  };
+</script>
+<script src="robot_view.js"></script>
+</body>
+</html>
