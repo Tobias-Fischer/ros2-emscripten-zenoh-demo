@@ -17,4 +17,4 @@ jupyter_server = "2.21.0.*"
 # stack (see demo_env_build/pixi.toml.in), pthreads-python and all, so the
 # notebook kernel and the browser_demo talkers share one built environment
 # instead of resolving/downloading the same closure twice.
-build = { cmd = "jupyter lite init && jupyter lite build --contents content --XeusAddon.prefix=../demo_env" }
+build = { cmd = "jupyter lite init && jupyter lite build --contents content --XeusAddon.prefix=../demo_env --XeusAddon.default_channels='[\"https://repo.prefix.dev/emscripten-forge-4x\",\"https://repo.prefix.dev/conda-forge\"]'" }
