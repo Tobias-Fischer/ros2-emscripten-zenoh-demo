@@ -138,9 +138,9 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
     <p class="section-lede">
       Standalone pages, each its own small wasm32 binary — best tried on a
       phone for the GPS and tilt ones. All publish/subscribe on the same
-      zenoh graph as the two demos above, so e.g. the virtual robot page
-      will move in response to either teleop demo, even running on a
-      different device.
+      zenoh graph as the talkers above and each other, so e.g. the virtual
+      robot page will move in response to either teleop demo, even running
+      on a different device.
     </p>
     <div class="pillrow">
       <a class="pill" href="demos/index_teleop.html" target="_blank" rel="noopener">⌨️ keyboard teleop</a>
@@ -186,6 +186,7 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
       to. The full write-up, with rationale for each one, lives in this
       repo's <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo#readme" target="_blank" rel="noopener">README</a>.
     </p>
+    <div class="table-scroll">
     <table class="sources-table">
       <thead><tr><th>Repo</th><th>What changed</th></tr></thead>
       <tbody>
@@ -215,10 +216,11 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
         </tr>
         <tr>
           <td><a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo" target="_blank" rel="noopener">ros2-emscripten-zenoh-demo</a></td>
-          <td>This repo: the write-up tying all of the above together, the <code>browser_demo/</code> source for both talkers, and this site.</td>
+          <td>This repo: the write-up tying all of the above together, the <code>browser_demo/</code> source for all seven demos, and this site.</td>
         </tr>
       </tbody>
     </table>
+    </div>
   </section>
 
   <footer>
