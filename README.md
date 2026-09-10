@@ -60,8 +60,7 @@ eagerly-imported extensions — is registered ahead of time via
 instead of left for Python's import system to find dynamically.
 
 Full reproduction steps (the custom CPython/`numpy` builds, the exact
-`rattler-build` invocations, why three message packages need a second
-build pass) are in [`docs/demo_env.md`](docs/demo_env.md).
+`rattler-build` invocations) are in [`docs/demo_env.md`](docs/demo_env.md).
 
 ## Known limitations
 
@@ -79,10 +78,11 @@ further):
   (a two-line local patch to `rclpy/node.py`, documented in
   [`docs/demo_env.md`](docs/demo_env.md)).
 
-Also: `rosidl_typesupport_microxrcedds_cpp`'s codegen doesn't handle ROS
-2's newer service "_Event" messages — specific to the **C++** typesupport
-variant (the **C** variant those same packages need for `rmw_zenoh_pico`
-builds fine). Not upstreamed — a real codegen fix, out of scope here.
+`rosidl_typesupport_microxrcedds_cpp`'s codegen used to not handle ROS 2's
+newer auto-generated service/action "_Event" messages. That one's fixed
+now, not worked around — see `ros-rolling`'s
+`patch/ros-rolling-rosidl-typesupport-microxrcedds-cpp.patch` and the
+upstream PR linked from it.
 
 ## Reproducing it
 

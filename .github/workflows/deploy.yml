@@ -153,20 +153,17 @@ jobs:
           path: ros-rolling/output
           key: ros-rolling-emscripten-output-${{ hashFiles('ros-rolling/vinca.yaml', 'ros-rolling/robostack.yaml', 'ros-rolling/patch/**', 'ros-rolling/pkg_additional_info.yaml', 'ros-rolling/rosdistro_snapshot.yaml', 'ros-rolling/vinca_pinning.yaml', 'ros-rolling/conda_build_config.yaml', 'ros-rolling/pixi.toml') }}
 
-      # Runs the full, multi-phase bootstrap sequence documented at the top
-      # of build_ros_rolling_closure.sh (and in more detail in
-      # ros-rolling's own pixi.toml): the native build-dependency bootstrap
-      # mirror, then the two disjoint typesupport-override rebuild groups
-      # for packages that hit the rosidl "_Event" codegen gap, then a final
-      # mop-up pass -- exactly the sequence that was actually run and
-      # verified (both talkers, independently confirmed via the zenohd
-      # router's own REST API) building this from a genuinely empty
-      # output/ directory. Fails loudly if anything is still missing
-      # afterwards, rather than silently deploying an incomplete closure.
+      # Runs the native build-dependency bootstrap mirror/build cycle
+      # documented at the top of build_ros_rolling_closure.sh (and in more
+      # detail in ros-rolling's own pixi.toml) until nothing new gets
+      # built, then verifies every recipe actually produced a package --
+      # exactly the sequence that was actually run and verified (both
+      # talkers, independently confirmed via the zenohd router's own REST
+      # API) building this from a genuinely empty output/ directory. Fails
+      # loudly if anything is still missing afterwards, rather than
+      # silently deploying an incomplete closure.
       - name: Build the full emscripten-wasm32 + rmw_zenoh_pico closure
         working-directory: ros-rolling
-        env:
-          EMSCRIPTEN_FORGE_OUTPUT: ${{ github.workspace }}/emscripten-forge-recipes/output
         run: bash ../demo-repo/.github/scripts/build_ros_rolling_closure.sh
 
       # ---- assemble demo_env, link both talkers --------------------------

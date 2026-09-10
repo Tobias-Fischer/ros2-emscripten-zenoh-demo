@@ -3,45 +3,27 @@
 # closure. Run from the root of a RoboStack/ros-rolling checkout (the
 # feature/emscripten-wasm32-zenoh-pico branch, or a fork/branch of it).
 #
-# A single `pixi run build-emscripten` isn't enough to get a genuinely
-# clean checkout all the way to a full closure -- two separate, understood
-# bootstrap requirements (both documented at length in this repo's own
-# pixi.toml) mean some packages need extra, explicit handling:
+# A single `pixi run build-emscripten` isn't quite enough to get a
+# genuinely clean checkout all the way to a full closure: several
+# packages' generated recipes declare a build:-time (build-platform, i.e.
+# native osx-arm64) dependency on rosidl_default_generators, which no
+# channel actually publishes for this platform. ros-rolling's own
+# `sync-native-bootstrap-mirror` pixi task satisfies it by mirroring
+# already-built emscripten-wasm32 packages into a fake osx-arm64 channel
+# entry (see that task's own comment in pixi.toml for the full story) --
+# but only packages built *before* the mirror was last synced are visible
+# to it, so a cold build needs sync+build repeated until nothing new
+# appears.
 #
-# 1. Native bootstrap mirror (see pixi.toml's `sync-native-bootstrap-mirror`
-#    task comment). Several packages' generated recipes declare a build:
-#    (build-platform, i.e. native osx-arm64) dependency on
-#    rosidl_default_generators, which no channel actually publishes for
-#    this platform. `sync-native-bootstrap-mirror` satisfies it by mirroring
-#    already-built emscripten-wasm32 packages into a fake osx-arm64 channel
-#    entry -- but only packages built *before* the mirror was last synced
-#    are visible, so a cold build needs sync+build repeated until nothing
-#    new appears.
-# 2. The typesupport "_Event" codegen gap (see pixi.toml's `build-emscripten`
-#    task comment, both the --continue-on-failure bullet and the "Known
-#    gap" paragraph on its env= line). rosidl_typesupport_microxrcedds_cpp
-#    doesn't generate typesupport for ROS 2's auto-generated service/action
-#    "_Event" messages. Two DISJOINT groups of affected packages need
-#    different scoped rebuilds -- see pixi.toml for exactly why they must
-#    stay disjoint (routing a C-only package through the no-override
-#    rebuild "succeeds" but silently wires the wrong typesupport backend
-#    into its dispatch table):
-#      - NO_OVERRIDE_PKGS: rebuilt with no typesupport override at all.
-#      - C_ONLY_PKGS: rmw_zenoh_pico needs the C backend from these
-#        specifically, so rebuilt directly with only the C override set
-#        (never routed through the no-override rebuild first).
-#
-# Both groups' package lists are a live, evolving fact about the current
-# ROS 2 rolling message set (e.g. test_msgs was added to NO_OVERRIDE_PKGS
-# only once it became a real, non-optional build/test_depend of rcl) --
-# keep them in sync with pixi.toml's own comments, which are the source of
-# truth.
+# This used to also need two disjoint groups of packages rebuilt with a
+# scoped typesupport override, working around a rosidl_typesupport_microxrcedds_cpp
+# codegen gap for ROS 2's auto-generated service/action "_Event" messages.
+# That's fixed at the source now (see
+# patch/ros-rolling-rosidl-typesupport-microxrcedds-cpp.patch and the
+# upstream PR linked from it) -- a single `pixi run build-emscripten` with
+# both typesupport overrides set globally now builds the entire closure,
+# no scoped rebuilds needed.
 set -euo pipefail
-
-NO_OVERRIDE_PKGS=(action-msgs lifecycle-msgs rosgraph-msgs statistics-msgs micro-ros-msgs test-msgs example-interfaces)
-C_ONLY_PKGS=(rcl-interfaces type-description-interfaces service-msgs)
-
-EMSCRIPTEN_FORGE_OUTPUT="${EMSCRIPTEN_FORGE_OUTPUT:?set EMSCRIPTEN_FORGE_OUTPUT to the emscripten-forge-recipes output dir}"
 
 sync_mirror() {
   pixi run sync-native-bootstrap-mirror
@@ -50,65 +32,26 @@ sync_mirror() {
 full_pass() {
   echo "::group::pixi run build-emscripten"
   # --continue-on-failure (baked into the task itself) makes this exit 0
-  # even when some recipes fail -- that's fine, later steps re-check what's
-  # actually missing.
+  # even when some recipes fail -- that's fine, the check below re-verifies
+  # what's actually missing once the bootstrap sequence is done.
   pixi run build-emscripten
   echo "::endgroup::"
 }
 
-build_scoped() {
-  local pkg="$1"
-  shift
-  echo "::group::rebuild ros2-${pkg} ($*)"
-  env "$@" pixi run rattler-build build \
-    --package-format tar-bz2 \
-    --recipe "./recipes/ros2-${pkg}/recipe.yaml" \
-    -m ./conda_build_config.yaml \
-    -c https://repo.prefix.dev/conda-forge \
-    -c https://repo.prefix.dev/emscripten-forge-4x \
-    -c "file://${EMSCRIPTEN_FORGE_OUTPUT}" \
-    -c microsoft \
-    -c robostack-staging \
-    --target-platform emscripten-wasm32 \
-    --skip-existing \
-    --test skip \
-    --channel-priority disabled
-  echo "::endgroup::"
-}
-
-is_built() {
-  compgen -G "output/emscripten-wasm32/ros2-${1}-*.tar.bz2" > /dev/null
-}
-
-# ---- Phase 1: everything that doesn't need special handling --------------
-sync_mirror
-full_pass
-
-# ---- Phase 2: the C-only group (rmw_zenoh_pico's actual requirement) -----
-# In dependency order: service_msgs has no dependency on the other two,
-# rcl_interfaces and type_description_interfaces don't depend on each
-# other or on service_msgs, so the only real ordering constraint is that
-# each of these gets its own mirror resync before the next depends on it
-# transitively (rosgraph_msgs, in phase 3, needs rcl_interfaces).
-for pkg in "${C_ONLY_PKGS[@]}"; do
-  if ! is_built "$pkg"; then
-    build_scoped "$pkg" VINCA_EMSCRIPTEN_RMW_IMPLEMENTATION=rmw_zenoh_pico VINCA_EMSCRIPTEN_STATIC_TYPESUPPORT_C=rosidl_typesupport_microxrcedds_c
-    sync_mirror
+# A cold build typically needs a handful of these rounds: each pass
+# unblocks more of the native-mirror-gated packages, which then let the
+# next pass go further. Once a pass adds nothing new to the mirror,
+# there's nothing left to unblock.
+prev_count=-1
+for _ in $(seq 1 10); do
+  sync_mirror
+  full_pass
+  count=$(find output/emscripten-wasm32 -maxdepth 1 -name '*.tar.bz2' | wc -l)
+  if [ "$count" -eq "$prev_count" ]; then
+    break
   fi
+  prev_count="$count"
 done
-
-# ---- Phase 3: the no-override group ---------------------------------------
-for pkg in "${NO_OVERRIDE_PKGS[@]}"; do
-  if ! is_built "$pkg"; then
-    build_scoped "$pkg" VINCA_EMSCRIPTEN_RMW_IMPLEMENTATION=rmw_zenoh_pico
-    sync_mirror
-  fi
-done
-
-# ---- Phase 4: mop up everything now unblocked (std_msgs, and everything
-# downstream of it: rmw_zenoh_pico, rcl, rclcpp, rclc, rclpy, ...) ---------
-sync_mirror
-full_pass
 
 # ---- Verify: fail loudly (not silently, the way --continue-on-failure
 # would) if anything is still missing after the full bootstrap sequence --

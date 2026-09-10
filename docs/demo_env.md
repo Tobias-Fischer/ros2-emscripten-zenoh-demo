@@ -22,8 +22,7 @@ subdirectories; the two things that make it non-obvious are which
 From a checkout of [RoboStack/ros-rolling#46](https://github.com/RoboStack/ros-rolling/pull/46):
 
 ```bash
-EMSCRIPTEN_FORGE_OUTPUT=/path/to/emscripten-forge-recipes/output \
-  bash /path/to/ros2-emscripten-zenoh-demo/.github/scripts/build_ros_rolling_closure.sh
+bash /path/to/ros2-emscripten-zenoh-demo/.github/scripts/build_ros_rolling_closure.sh
 ```
 
 This builds the full `emscripten-wasm32` + `rmw_zenoh_pico` recipe closure
@@ -31,38 +30,24 @@ This builds the full `emscripten-wasm32` + `rmw_zenoh_pico` recipe closure
 so re-runs only rebuild what changed. Run it from the root of the
 `ros-rolling` checkout.
 
-A single `pixi run build-emscripten` isn't enough on its own — the script
-handles two genuinely separate bootstrap requirements, both documented at
-length in its own header comment and in `ros-rolling`'s `pixi.toml`:
+A single `pixi run build-emscripten` isn't quite enough on its own for a
+genuinely cold checkout: several packages' generated recipes declare a
+`build:`-time dependency on a *native* (build-platform) copy of
+`rosidl_default_generators`, which no channel actually publishes for this
+platform. `pixi.toml`'s `sync-native-bootstrap-mirror` task satisfies it by
+mirroring already-built `emscripten-wasm32` packages into a fake
+`osx-arm64` channel entry — no real native build involved, but it needs
+re-running after each pass that produces new packages, so the script loops
+sync+build until a pass adds nothing new.
 
-- Several packages' generated recipes declare a `build:`-time dependency on
-  a *native* (build-platform) copy of `rosidl_default_generators`, which no
-  channel actually publishes for this platform. `pixi.toml`'s
-  `sync-native-bootstrap-mirror` task satisfies it by mirroring already-built
-  `emscripten-wasm32` packages into a fake `osx-arm64` channel entry — no
-  real native build involved, but it needs re-running after each pass that
-  produces new packages.
-- `rosidl_typesupport_microxrcedds_cpp`'s codegen doesn't generate
-  typesupport for ROS 2's newer auto-generated service "`_Event`" messages —
-  a real gap, not a RoboStack issue (see the main
-  [README](../README.md#known-limitations)). Most affected packages
-  (`action_msgs`, `lifecycle_msgs`, `rosgraph_msgs`, `statistics_msgs`,
-  `micro_ros_msgs`, `test_msgs`, `example_interfaces`) are rebuilt with no
-  typesupport override at all, falling back to introspection. Three
-  packages `rmw_zenoh_pico` actually needs the **C** typesupport backend
-  for — `rcl_interfaces`, `type_description_interfaces`, `service_msgs` —
-  are rebuilt directly with only the C backend selected (never routed
-  through the no-override rebuild first: leaving C++ unset already falls
-  back to introspection there too, sidestepping the same gap, while still
-  getting the C backend these three actually need). Mixing the two groups
-  up doesn't fail loudly — it silently leaves the wrong backend wired into
-  that package's typesupport dispatch table (caught this once on
-  `type_description_interfaces`), so the two lists are kept disjoint and
-  the script never routes a package through both.
-
-Not wired into `pixi run build-emscripten` as one command yet — that would
-need vinca to support a per-package typesupport override rather than one
-global env var for the whole invocation.
+`rosidl_typesupport_microxrcedds_cpp`'s codegen used to not generate
+typesupport for ROS 2's auto-generated service/action "`_Event`" messages,
+which used to require rebuilding a dozen affected packages by hand with
+different typesupport overrides after the main build. Fixed at the source
+now — see `patch/ros-rolling-rosidl-typesupport-microxrcedds-cpp.patch` in
+`ros-rolling` — so a single `pixi run build-emscripten` pass (with both
+typesupport overrides set globally, as `pixi.toml` already does) now
+builds the entire closure correctly.
 
 ## 2. Build a pthreads-enabled CPython + numpy
 
