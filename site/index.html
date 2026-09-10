@@ -75,12 +75,13 @@
     <div class="setup-box">
       <b>Do this first — run a local zenoh router the ROS 2&nbsp;way:</b>
       <p style="margin:8px 0 0;">The router is a normal <code>ros2 run</code> command
-      (<code>rmw_zenoh_cpp</code> ships it as <code>rmw_zenohd</code>) — install it with
-      <a href="https://pixi.sh/" target="_blank" rel="noopener">pixi</a> like any other
-      RoboStack package, no manual binary download needed:</p>
-      <pre>pixi init zenoh-router &amp;&amp; cd zenoh-router
-pixi add -c robostack-staging -c conda-forge ros-humble-rmw-zenoh-cpp
-pixi run ros2 run rmw_zenoh_cpp rmw_zenohd</pre>
+      (<code>rmw_zenoh_cpp</code> ships it as <code>rmw_zenohd</code>) —
+      <a href="https://pixi.sh/" target="_blank" rel="noopener">pixi</a>'s <code>exec</code>
+      installs it into a throwaway environment and runs it in one line, no project
+      directory needed:</p>
+      <pre>pixi exec --with ros-humble-rmw-zenoh-cpp --with ros-humble-ros2cli --with ros-humble-ros2run \
+  -c robostack-staging -c conda-forge \
+  ros2 run rmw_zenoh_cpp rmw_zenohd</pre>
       <p style="margin:10px 0 0;">(<code>rmw_zenohd</code> just starts a router process — it
       works regardless of which ROS distro your own nodes use. <code>robostack-staging</code>
       only has a <code>humble</code> build of the package today; a <code>rolling</code> one
@@ -126,9 +127,10 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
     </div>
 
     <p class="section-lede">
-      Want the much lighter version instead — no 57&nbsp;MB download, no
-      pthreads, just a browser talking to zenoh in the simplest way
-      possible? Try the <a href="jupyterlite/">JupyterLite notebook</a> below.
+      Want to edit and re-run the <code>rclpy</code> code yourself instead of
+      just watching it run? The same <code>rclpy</code> + <code>rmw_zenoh_pico</code>
+      build is also available as an editable notebook — see
+      <a href="jupyterlite/">JupyterLite</a> below.
     </p>
   </section>
 
@@ -153,17 +155,16 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
 
   <section id="jupyterlite">
     <h2 class="h">JupyterLite demo</h2>
-    <h3 class="section-title">The simple way in: plain HTTP, no wasm build required</h3>
+    <h3 class="section-title">The same real rclpy, but editable</h3>
     <p class="section-lede">
-      The two demos above prove the whole compiled-wasm32-ROS-node approach
-      works — but that's a lot of machinery to read through. This notebook
-      skips all of it: it talks to <code>zenohd</code>'s built-in REST plugin
-      with a couple of lines of <code>pyodide.http</code>, straight from a
-      notebook running entirely in your browser via
-      <a href="https://jupyterlite.readthedocs.io/" target="_blank" rel="noopener">JupyterLite</a>.
-      No compiled ROS 2 code, no pthreads — the point is to show that
-      "browser talks to your ROS 2 graph through zenoh" doesn't have to be
-      complicated.
+      A genuine <code>xeus-python</code> kernel running the exact same
+      compiled <code>rclpy</code> + <code>rmw_zenoh_pico</code> build as the
+      rclpy talker above — via
+      <a href="https://github.com/jupyter-xeus/jupyterlite-xeus" target="_blank" rel="noopener">jupyterlite-xeus</a>,
+      not Pyodide, so real conda/emscripten-forge packages (including this
+      repo's own) work as installed, not just what Pyodide happens to ship.
+      Edit any cell and re-run it — create a node, publish, subscribe, see
+      messages arrive from (or send them to) the other demos on this page.
     </p>
     <a class="btn primary" href="jupyterlite/notebooks/index.html?path=demo.ipynb" target="_blank" rel="noopener">Open the notebook →</a>
   </section>
@@ -203,11 +204,11 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
           <td>Upstream fixes needed for zenoh-pico's own emscripten/wasm32 platform target to build cleanly under this pipeline's threading and linking setup.</td>
         </tr>
         <tr>
-          <td><a href="https://github.com/eclipse-zenoh/rmw_zenoh_pico/pull/7" target="_blank" rel="noopener">rmw_zenoh_pico #7</a></td>
+          <td><a href="https://github.com/esol-community/rmw_zenoh_pico/pull/7" target="_blank" rel="noopener">rmw_zenoh_pico #7</a></td>
           <td>Fixes and gaps in the RMW layer itself, hit while getting a full <code>rclcpp</code>/<code>rclpy</code> node (not just zenoh-pico's own pub/sub API) working end-to-end.</td>
         </tr>
         <tr>
-          <td><a href="https://github.com/ros2/rosidl_typesupport_microxrcedds/pull/83" target="_blank" rel="noopener">rosidl_typesupport_microxrcedds #83</a></td>
+          <td><a href="https://github.com/micro-ROS/rosidl_typesupport_microxrcedds/pull/83" target="_blank" rel="noopener">rosidl_typesupport_microxrcedds #83</a></td>
           <td>Typesupport codegen fixes hit while cross-building the message packages this demo depends on.</td>
         </tr>
         <tr>

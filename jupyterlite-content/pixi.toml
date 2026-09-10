@@ -6,8 +6,15 @@ platforms = ["osx-arm64", "linux-64"]
 
 [dependencies]
 jupyterlite-core = "0.8.3.*"
-jupyterlite-pyodide-kernel = "0.8.5.*"
+jupyterlite-xeus = "*"
 jupyter_server = "2.21.0.*"
 
 [tasks]
-build = { cmd = "jupyter lite init && jupyter lite build --contents content" }
+# --XeusAddon.prefix points at the *already-assembled* ../demo_env (see
+# ../demo_env_build) rather than having jupyterlite-xeus solve its own
+# emscripten-wasm32 environment from scratch: demo_env already has
+# xeus-python installed alongside the real rclpy/rmw_zenoh_pico/zenoh-pico
+# stack (see demo_env_build/pixi.toml.in), pthreads-python and all, so the
+# notebook kernel and the browser_demo talkers share one built environment
+# instead of resolving/downloading the same closure twice.
+build = { cmd = "jupyter lite init && jupyter lite build --contents content --XeusAddon.prefix=../demo_env" }

@@ -36,3 +36,7 @@ zenoh-pico = "1.4.0.*"
 # so they don't come along transitively — see ../patches/README.md).
 libffi = "*"
 xz = "*"
+# For the JupyterLite-xeus notebook (see ../jupyterlite-content) — reuses
+# this same pthreads-enabled python rather than a separate build, so the
+# kernel and the rclpy/.so extensions it imports share one Python ABI.
+xeus-python = "*"
