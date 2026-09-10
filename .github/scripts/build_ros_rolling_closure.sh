@@ -6,14 +6,17 @@
 # A single `pixi run build-emscripten` isn't quite enough to get a
 # genuinely clean checkout all the way to a full closure: several
 # packages' generated recipes declare a build:-time (build-platform, i.e.
-# native osx-arm64) dependency on rosidl_default_generators, which no
-# channel actually publishes for this platform. ros-rolling's own
-# `sync-native-bootstrap-mirror` pixi task satisfies it by mirroring
-# already-built emscripten-wasm32 packages into a fake osx-arm64 channel
-# entry (see that task's own comment in pixi.toml for the full story) --
-# but only packages built *before* the mirror was last synced are visible
-# to it, so a cold build needs sync+build repeated until nothing new
-# appears.
+# whatever machine is actually running this) dependency on
+# rosidl_default_generators, which no channel actually publishes for any
+# native platform. ros-rolling's own `sync-native-bootstrap-mirror` pixi
+# task satisfies it by mirroring already-built emscripten-wasm32 packages
+# into a fake channel entry *named after this machine's own native
+# platform* (see sync_native_bootstrap_mirror.sh and that task's own
+# comment in pixi.toml for the full story -- a previous version of this
+# hardcoded osx-arm64, which silently did nothing useful on this repo's
+# own ubuntu-latest CI runner) -- but only packages built *before* the
+# mirror was last synced are visible to it, so a cold build needs
+# sync+build repeated until nothing new appears.
 #
 # This used to also need two disjoint groups of packages rebuilt with a
 # scoped typesupport override, working around a rosidl_typesupport_microxrcedds_cpp
