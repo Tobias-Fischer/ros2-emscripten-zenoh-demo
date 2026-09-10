@@ -29,9 +29,30 @@
 </div>
 <script>
   const logEl = document.getElementById('log');
+  // Emscripten's own dylib-loading watchdog fires every ~10s while any of
+  // this page's ~90 .so files (the full transitive ROS 2 core dependency
+  // graph, not just what this page's own code needs) are still in flight --
+  // completely normal on a slow connection, not a crash, but its raw 3-line
+  // block reads like one if shown immediately and repeated every tick. See
+  // printErr below.
+  let dylibWaitTicks = 0;
+  let dylibNoticeShown = false;
   var Module = {
     print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
-    printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
+    printErr: (t) => {
+      console.error(t);
+      if (t.startsWith("still waiting on run dependencies") || t.startsWith("dependency: ") || t === "(end of list)") {
+        if (t.startsWith("still waiting on run dependencies")) {
+          dylibWaitTicks++;
+          if (dylibWaitTicks >= 3 && !dylibNoticeShown) {
+            dylibNoticeShown = true;
+            logEl.textContent += "[info] still loading dependencies -- this can take a while on a slow connection\n";
+          }
+        }
+        return;
+      }
+      logEl.textContent += "[err] " + t + "\n";
+    },
     // See index_rclc.html for why this is needed.
     websocket: { subprotocol: null },
   };

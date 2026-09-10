@@ -18,8 +18,17 @@
 #include <sensor_msgs/msg/nav_sat_fix.h>
 #include <rosidl_runtime_c/string_functions.h>
 
+// RCL_RET_PUBLISHER_INVALID (300) is what every rcl_publish() call
+// returns, over and over, whenever the wasm32 build can't reach a zenoh
+// router at ws://127.0.0.1:7447 -- expected while none is running yet,
+// not a crash, but "Failed status on line N: 300" reads like one, so
+// spell out what it actually means instead of just the raw code.
 #define RCCHECK(fn) { rcl_ret_t rc = fn; if (rc != RCL_RET_OK) { \
-  printf("Failed status on line %d: %d\n", __LINE__, (int)rc); } }
+  if (rc == RCL_RET_PUBLISHER_INVALID) { \
+    printf("Line %d: publisher invalid (rc=%d) -- usually means no zenoh router is reachable yet at ws://127.0.0.1:7447; start one (see the site's setup box).\n", __LINE__, (int)rc); \
+  } else { \
+    printf("Failed status on line %d: %d\n", __LINE__, (int)rc); \
+  } } }
 
 rcl_publisher_t publisher;
 sensor_msgs__msg__NavSatFix msg;
