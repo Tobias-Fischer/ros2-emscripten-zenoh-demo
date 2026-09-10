@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>wasm32 rclc IMU teleop (rmw_zenoh_pico)</title></head>
+<body>
+<h1>wasm32 rclc IMU teleop (rmw_zenoh_pico)</h1>
+<p>Tilt your phone forward/back to drive, left/right to turn — publishes <code>geometry_msgs/Twist</code> on <code>cmd_vel</code> (same topic the keyboard teleop demo uses — open <a href="robot_view.html">robot_view.html</a> in another tab/device to watch a virtual robot follow it).</p>
+<button id="enable-btn">Enable motion controls</button>
+<pre id="log" style="white-space:pre-wrap;"></pre>
+<script>
+  const logEl = document.getElementById('log');
+  var Module = {
+    print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
+    printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
+    // See index_rclc.html for why this is needed.
+    websocket: { subprotocol: null },
+  };
+
+  // Same shared-memory pattern as index_teleop.html: main() runs on a
+  // pthread Web Worker with no window/DOM access, so the orientation
+  // listener lives here in plain JS on the real main thread, writing
+  // directly into wasm linear memory at the address imu_get_state_ptr()
+  // exports. See imu_rclc.c.
+  const LINEAR_SCALE = 0.5;   // m/s at a full forward/back tilt
+  const ANGULAR_SCALE = 1.0;  // rad/s at a full left/right tilt
+  const TILT_DEADZONE = 5;    // degrees -- ignore near-flat noise
+  const TILT_FULL_SCALE = 30; // degrees of tilt for full speed
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+  function axisFromTilt(degrees) {
+    if (Math.abs(degrees) < TILT_DEADZONE) return 0;
+    const sign = degrees > 0 ? 1 : -1;
+    const magnitude = (Math.abs(degrees) - TILT_DEADZONE) / (TILT_FULL_SCALE - TILT_DEADZONE);
+    return sign * clamp(magnitude, 0, 1);
+  }
+
+  Module.onRuntimeInitialized = () => {
+    const statePtr = Module.ccall('imu_get_state_ptr', 'number', [], []);
+    const linearXIndex = statePtr >> 3;
+    const angularZIndex = linearXIndex + 1;
+    const hasOrientationIndex = (statePtr + 16) >> 2;
+
+    function onOrientation(e) {
+      if (e.beta === null || e.gamma === null) return;
+      // beta: front/back tilt (0 = flat, +90 = upright tilted forward);
+      // forward tilt should drive forward, so negate it into "how far
+      // past flat, forward-positive".
+      Module.HEAPF64[linearXIndex] = axisFromTilt(-e.beta) * LINEAR_SCALE;
+      // gamma: left/right tilt (-90..90); tilt right should turn right
+      // (negative angular.z, matching the keyboard demo's 'd' key).
+      Module.HEAPF64[angularZIndex] = axisFromTilt(-e.gamma) * ANGULAR_SCALE;
+      Module.HEAP32[hasOrientationIndex] = 1;
+    }
+
+    document.getElementById('enable-btn').addEventListener('click', async () => {
+      // iOS 13+ requires this to be called from a user gesture (a plain
+      // click handler counts); every other platform doesn't have
+      // requestPermission at all, so this only runs where it's needed.
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        try {
+          const result = await DeviceOrientationEvent.requestPermission();
+          if (result !== 'granted') {
+            logEl.textContent += "[err] device orientation permission: " + result + "\n";
+            return;
+          }
+        } catch (err) {
+          logEl.textContent += "[err] device orientation permission: " + err.message + "\n";
+          return;
+        }
+      }
+      window.addEventListener('deviceorientation', onOrientation);
+      console.log('imu: deviceorientation listener installed');
+    }, { once: true });
+  };
+</script>
+<script src="imu_rclc.js"></script>
+</body>
+</html>
