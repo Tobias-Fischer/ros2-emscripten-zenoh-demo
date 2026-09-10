@@ -37,6 +37,7 @@ on:
       - "demo_env_build/**"
       - "patches/**"
       - ".github/workflows/deploy.yml"
+      - ".github/scripts/**"
 
 permissions:
   contents: read
@@ -152,33 +153,21 @@ jobs:
           path: ros-rolling/output
           key: ros-rolling-emscripten-output-${{ hashFiles('ros-rolling/vinca.yaml', 'ros-rolling/robostack.yaml', 'ros-rolling/patch/**', 'ros-rolling/pkg_additional_info.yaml', 'ros-rolling/rosdistro_snapshot.yaml', 'ros-rolling/vinca_pinning.yaml', 'ros-rolling/conda_build_config.yaml', 'ros-rolling/pixi.toml') }}
 
+      # Runs the full, multi-phase bootstrap sequence documented at the top
+      # of build_ros_rolling_closure.sh (and in more detail in
+      # ros-rolling's own pixi.toml): the native build-dependency bootstrap
+      # mirror, then the two disjoint typesupport-override rebuild groups
+      # for packages that hit the rosidl "_Event" codegen gap, then a final
+      # mop-up pass -- exactly the sequence that was actually run and
+      # verified (both talkers, independently confirmed via the zenohd
+      # router's own REST API) building this from a genuinely empty
+      # output/ directory. Fails loudly if anything is still missing
+      # afterwards, rather than silently deploying an incomplete closure.
       - name: Build the full emscripten-wasm32 + rmw_zenoh_pico closure
         working-directory: ros-rolling
-        run: pixi run build-emscripten
-
-      # rosidl_typesupport_microxrcedds_cpp's codegen gap (see the main
-      # repo README's Known limitations): these 3 packages need the C-only
-      # typesupport backend specifically for rmw_zenoh_pico, which the
-      # single global env var above can't express -- always force-rebuilt,
-      # same invocation documented in docs/demo_env.md.
-      - name: Rebuild rcl_interfaces/type_description_interfaces/service_msgs (C-only typesupport)
-        working-directory: ros-rolling
         env:
-          VINCA_EMSCRIPTEN_RMW_IMPLEMENTATION: rmw_zenoh_pico
-          VINCA_EMSCRIPTEN_STATIC_TYPESUPPORT_C: rosidl_typesupport_microxrcedds_c
-        run: |
-          for pkg in rcl-interfaces type-description-interfaces service-msgs; do
-            pixi run rattler-build build \
-              --package-format tar-bz2 \
-              --recipe "./recipes/ros2-${pkg}/recipe.yaml" \
-              -m ./conda_build_config.yaml \
-              -c https://repo.prefix.dev/conda-forge \
-              -c https://repo.prefix.dev/emscripten-forge-4x \
-              -c "file://${GITHUB_WORKSPACE}/emscripten-forge-recipes/output" \
-              -c microsoft \
-              --target-platform emscripten-wasm32 \
-              --skip-existing none --test skip --channel-priority disabled
-          done
+          EMSCRIPTEN_FORGE_OUTPUT: ${{ github.workspace }}/emscripten-forge-recipes/output
+        run: bash ../demo-repo/.github/scripts/build_ros_rolling_closure.sh
 
       # ---- assemble demo_env, link both talkers --------------------------
       - name: Assemble demo_env
