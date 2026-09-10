@@ -152,9 +152,47 @@ jobs:
           path: ros-rolling/output
           key: ros-rolling-emscripten-output-${{ hashFiles('ros-rolling/vinca.yaml', 'ros-rolling/robostack.yaml', 'ros-rolling/patch/**', 'ros-rolling/pkg_additional_info.yaml', 'ros-rolling/rosdistro_snapshot.yaml', 'ros-rolling/vinca_pinning.yaml', 'ros-rolling/conda_build_config.yaml', 'ros-rolling/pixi.toml') }}
 
+      # Not `pixi run build-emscripten` directly: that task has no
+      # --continue-on-failure, and a genuinely from-scratch build of the
+      # full closure (never actually exercised atomically before -- the
+      # original local build accreted incrementally over many separate
+      # runs) hits real package-ordering gaps rattler-build's dependency
+      # graph doesn't capture on its own -- e.g. ros2-rosidl-typesupport-cpp
+      # probes for rosidl_typesupport_microxrcedds_c via a plain
+      # find_package() (driven by VINCA_EMSCRIPTEN_STATIC_TYPESUPPORT_C
+      # below, read by vinca's build_ament_cmake.sh.in), which isn't a real
+      # recipe dependency rattler-build can order against. Same command
+      # ros-rolling's own build-emscripten task runs (see its pixi.toml),
+      # plus --continue-on-failure and up to 3 passes so --skip-existing
+      # lets each pass pick up whatever the previous one unblocked.
+      - name: Generate emscripten-wasm32 recipes
+        working-directory: ros-rolling
+        run: pixi run generate-recipes-emscripten
       - name: Build the full emscripten-wasm32 + rmw_zenoh_pico closure
         working-directory: ros-rolling
-        run: pixi run build-emscripten
+        env:
+          VINCA_EMSCRIPTEN_RMW_IMPLEMENTATION: rmw_zenoh_pico
+          VINCA_EMSCRIPTEN_STATIC_TYPESUPPORT_C: rosidl_typesupport_microxrcedds_c
+          VINCA_EMSCRIPTEN_STATIC_TYPESUPPORT_CPP: rosidl_typesupport_microxrcedds_cpp
+        run: |
+          for pass in 1 2 3; do
+            echo "::group::Pass $pass"
+            pixi run rattler-build build \
+              --package-format tar-bz2 \
+              --recipe-dir ./recipes \
+              -m ./conda_build_config.yaml \
+              -c https://repo.prefix.dev/conda-forge \
+              -c https://repo.prefix.dev/emscripten-forge-4x \
+              -c file:///tmp/emscripten_forge_recipes/output \
+              -c microsoft -c robostack-staging \
+              --target-platform emscripten-wasm32 \
+              --skip-existing --test skip --channel-priority disabled \
+              --continue-on-failure \
+              && ok=1 || ok=0
+            echo "::endgroup::"
+            if [ "$ok" = "1" ]; then break; fi
+          done
+          [ "$ok" = "1" ] || { echo "still failing after 3 passes"; exit 1; }
 
       # rosidl_typesupport_microxrcedds_cpp's codegen gap (see the main
       # repo README's Known limitations): these 3 packages need the C-only
