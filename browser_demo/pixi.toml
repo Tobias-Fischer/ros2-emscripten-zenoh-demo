@@ -15,3 +15,4 @@ emscripten_emscripten-wasm32 = "==4.0.9"
 [tasks]
 build-rclc = "bash build_rclc.sh"
 build-rclpy = "bash build_rclpy.sh"
+build-teleop = "bash build_teleop.sh"

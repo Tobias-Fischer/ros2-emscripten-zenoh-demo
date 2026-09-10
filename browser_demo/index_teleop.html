@@ -1,0 +1,61 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>wasm32 rclc teleop (rmw_zenoh_pico)</title></head>
+<body>
+<h1>wasm32 rclc teleop (rmw_zenoh_pico)</h1>
+<p>Click here, then use <b>W/A/S/D</b> or the <b>arrow keys</b> to drive — publishes <code>geometry_msgs/Twist</code> on <code>cmd_vel</code>.</p>
+<pre id="log" style="white-space:pre-wrap;"></pre>
+<script>
+  const logEl = document.getElementById('log');
+  var Module = {
+    print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
+    printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
+    // See index_rclc.html for why this is needed.
+    websocket: { subprotocol: null },
+  };
+
+  // main() runs on a pthread Web Worker (-sPROXY_TO_PTHREAD=1), which has
+  // no window/DOM access -- so the keyboard listener lives here, in plain
+  // JS on the page's real main thread, instead of in C/EM_JS code. It
+  // writes directly into wasm linear memory (a SharedArrayBuffer in this
+  // pthreads build) at the address teleop_get_state_ptr() returns; the
+  // worker-side timer callback reads the same bytes with a plain C read,
+  // no cross-thread call needed on that hot (10 Hz) path. See
+  // teleop_rclc.c for the C side of this.
+  const LINEAR_SCALE = 0.5;
+  const ANGULAR_SCALE = 1.0;
+  const keys = { w: false, a: false, s: false, d: false };
+
+  function keyFor(rawKey) {
+    const key = rawKey.toLowerCase();
+    if (key === 'w' || key === 'arrowup') return 'w';
+    if (key === 's' || key === 'arrowdown') return 's';
+    if (key === 'a' || key === 'arrowleft') return 'a';
+    if (key === 'd' || key === 'arrowright') return 'd';
+    return null;
+  }
+
+  Module.onRuntimeInitialized = () => {
+    const statePtr = Module.ccall('teleop_get_state_ptr', 'number', [], []);
+    const linearXIndex = statePtr >> 3;
+    const angularZIndex = linearXIndex + 1;
+
+    function writeState() {
+      Module.HEAPF64[linearXIndex] = ((keys.w ? 1 : 0) - (keys.s ? 1 : 0)) * LINEAR_SCALE;
+      Module.HEAPF64[angularZIndex] = ((keys.a ? 1 : 0) - (keys.d ? 1 : 0)) * ANGULAR_SCALE;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const k = keyFor(e.key);
+      if (k) { keys[k] = true; e.preventDefault(); writeState(); }
+    });
+    window.addEventListener('keyup', (e) => {
+      const k = keyFor(e.key);
+      if (k) { keys[k] = false; e.preventDefault(); writeState(); }
+    });
+    console.log('teleop: keyboard listener installed (WASD / arrow keys)');
+  };
+</script>
+<script src="teleop_rclc.js"></script>
+</body>
+</html>

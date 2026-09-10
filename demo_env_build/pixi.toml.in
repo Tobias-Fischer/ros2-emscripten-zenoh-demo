@@ -23,6 +23,10 @@ ros2-rclpy = "*"
 ros2-rmw-zenoh-pico = "*"
 ros2-std-msgs = "*"
 ros2-rcutils = "*"
+# geometry_msgs (Twist) and sensor_msgs (Image, NavSatFix) for the
+# teleop/camera/GPS demo pages.
+ros2-geometry-msgs = "*"
+ros2-sensor-msgs = "*"
 # Pin to the version ros-rolling's own recipe builds (its own local channel,
 # listed first above, shadows emscripten-forge-4x's newer 1.10.1 — but only
 # once a matching version constraint stops the solver reaching past it).
