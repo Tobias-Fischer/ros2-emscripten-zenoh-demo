@@ -78,6 +78,12 @@ for d in "$PREFIX"/include/*/; do
   INCLUDE_FLAGS+=(-I"${d%/}")
 done
 
+# --embed-file below bakes the whole lib/python3.13 tree (site-packages
+# included) into the wasm binary's static data -- adding xeus-python to
+# demo_env (see ../demo_env_build/pixi.toml.in) lands its own files in that
+# same site-packages and pushed the required initial memory past the old
+# 64 MB ("wasm-ld: error: initial memory too small, ~80.7 MB needed"); 128 MB
+# below leaves real headroom rather than just clearing today's number.
 em++ \
   -std=c11 -pthread -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
@@ -93,7 +99,7 @@ em++ \
   -s PTHREAD_POOL_SIZE=4 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s STACK_SIZE=5MB -s DEFAULT_PTHREAD_STACK_SIZE=5MB \
-  -s INITIAL_MEMORY=67108864 -s MAXIMUM_MEMORY=1024MB \
+  -s INITIAL_MEMORY=134217728 -s MAXIMUM_MEMORY=1024MB \
   --embed-file "$PY/lib/python3.13@/pyhome/lib/python3.13" \
   --embed-file "$DEMO_DIR/talker_rclpy.py@/pyhome/talker_rclpy.py" \
   -L"$PY/lib" \
