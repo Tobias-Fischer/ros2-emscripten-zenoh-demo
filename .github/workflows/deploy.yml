@@ -173,11 +173,16 @@ jobs:
           EMSCRIPTEN_FORGE_OUTPUT: ${{ github.workspace }}/emscripten-forge-recipes/output
         run: ./demo-repo/demo_env_build/build.sh
 
-      - name: Build both talkers
+      - name: Build all browser_demo pages
         working-directory: demo-repo/browser_demo
         run: |
           pixi run build-rclc
           pixi run build-rclpy
+          pixi run build-teleop
+          pixi run build-gps
+          pixi run build-camera
+          pixi run build-imu
+          pixi run build-robot-view
 
       # ---- build the JupyterLite notebook site ---------------------------
       - name: Build JupyterLite
