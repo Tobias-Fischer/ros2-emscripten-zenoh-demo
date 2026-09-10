@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>wasm32 rclc GPS demo (rmw_zenoh_pico)</title></head>
+<body>
+<h1>wasm32 rclc GPS demo (rmw_zenoh_pico)</h1>
+<p>Publishes your browser's location as <code>sensor_msgs/NavSatFix</code> on <code>gps/fix</code>. Grant location access when prompted.</p>
+<pre id="log" style="white-space:pre-wrap;"></pre>
+<script>
+  const logEl = document.getElementById('log');
+  var Module = {
+    print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
+    printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
+    // See index_rclc.html for why this is needed.
+    websocket: { subprotocol: null },
+  };
+
+  // Same shared-memory pattern as index_teleop.html: main() runs on a
+  // pthread Web Worker with no window/DOM/Geolocation access, so
+  // navigator.geolocation lives here on the page's real main thread,
+  // writing straight into wasm linear memory at the address
+  // gps_get_state_ptr() exports once the runtime is ready. See
+  // gps_rclc.c for the struct layout (latitude, longitude, altitude,
+  // has_fix -- in that order, all but has_fix a double).
+  Module.onRuntimeInitialized = () => {
+    const statePtr = Module.ccall('gps_get_state_ptr', 'number', [], []);
+    const latIndex = statePtr >> 3;
+    const lonIndex = latIndex + 1;
+    const altIndex = latIndex + 2;
+    // has_fix is a 32-bit int right after three doubles (24 bytes in).
+    const hasFixIndex = (statePtr + 24) >> 2;
+
+    if (!navigator.geolocation) {
+      logEl.textContent += "[err] navigator.geolocation not available in this browser\n";
+      return;
+    }
+
+    navigator.geolocation.watchPosition(
+      (position) => {
+        const c = position.coords;
+        Module.HEAPF64[latIndex] = c.latitude;
+        Module.HEAPF64[lonIndex] = c.longitude;
+        Module.HEAPF64[altIndex] = (c.altitude === null) ? NaN : c.altitude;
+        Module.HEAP32[hasFixIndex] = 1;
+        console.log('gps: fix', c.latitude, c.longitude, c.altitude);
+      },
+      (err) => {
+        logEl.textContent += "[err] geolocation: " + err.message + "\n";
+      },
+      { enableHighAccuracy: false, maximumAge: 5000, timeout: 30000 }
+    );
+    console.log('gps: watchPosition installed, waiting for a fix');
+  };
+</script>
+<script src="gps_rclc.js"></script>
+</body>
+</html>
