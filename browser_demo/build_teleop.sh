@@ -70,5 +70,6 @@ em++ \
 # explicitly instead of relying on that (matching build_rclpy.sh's own
 # explicit `cp`, for the same reason) is more robust either way.
 cp "${LIBS[@]}" "$DEMO_DIR/out/"
+cp "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
 
 echo "Build finished: $DEMO_DIR/out/teleop_rclc.js / teleop_rclc.wasm"

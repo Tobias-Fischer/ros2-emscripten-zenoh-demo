@@ -139,6 +139,7 @@ p.section-lede { color: var(--text-dim); max-width: 700px; }
   color: var(--text-dim);
   background: var(--bg-raised);
 }
+a.pill:hover { border-color: var(--accent-dim); color: var(--text); text-decoration: none; }
 
 .arch-list { display: grid; gap: 10px; margin: 24px 0; }
 .arch-item {

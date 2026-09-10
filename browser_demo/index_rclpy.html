@@ -1,15 +1,35 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>wasm32 rclpy talker (rmw_zenoh_pico)</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wasm32 rclpy talker — ROS 2 in WebAssembly</title>
+<link rel="stylesheet" href="demo-page.css" />
+</head>
 <body>
-<h1>wasm32 rclpy talker (rmw_zenoh_pico)</h1>
-<pre id="log" style="white-space:pre-wrap;"></pre>
+<div class="wrap">
+  <nav class="demo-nav">
+    <a href="index_rclc.html">rclc talker</a>
+    <a href="index_rclpy.html" class="current">rclpy talker</a>
+    <a href="index_teleop.html">keyboard teleop</a>
+    <a href="index_imu.html">phone tilt</a>
+    <a href="index_gps.html">GPS</a>
+    <a href="index_camera.html">camera</a>
+    <a href="robot_view.html">virtual robot</a>
+  </nav>
+  <h1>rclpy talker</h1>
+  <p class="lede">The full stack: a real CPython interpreter, <code>rclpy</code>, and <code>numpy</code>, all inside wasm32 — publishes <code>std_msgs/String</code> on <code>chatter_rclpy</code> once a second. First load is a ~57&nbsp;MB download.</p>
+  <div class="panel">
+    <pre id="log"></pre>
+  </div>
+  <footer>wasm32 · rclpy · rmw_zenoh_pico — part of <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo">ros2-emscripten-zenoh-demo</a></footer>
+</div>
 <script>
   const logEl = document.getElementById('log');
   var Module = {
     print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
     printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
-    // See talker_rclc's index.html for why: zenohd's ws/ listener does a
+    // See index_rclc.html for why this is needed: zenohd's ws/ listener does a
     // plain upgrade with no Sec-WebSocket-Protocol negotiation, which real
     // browsers require a matching response for.
     websocket: { subprotocol: null },

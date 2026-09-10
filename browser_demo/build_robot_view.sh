@@ -62,5 +62,6 @@ em++ \
   -o "$DEMO_DIR/out/robot_view.js"
 
 cp "${LIBS[@]}" "$DEMO_DIR/out/"
+cp "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
 
 echo "Build finished: $DEMO_DIR/out/robot_view.js / robot_view.wasm"

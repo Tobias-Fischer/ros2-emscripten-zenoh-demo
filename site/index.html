@@ -132,6 +132,25 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
     </p>
   </section>
 
+  <section id="more-demos">
+    <h2 class="h">More demos</h2>
+    <h3 class="section-title">Real sensors and input, still just a browser tab</h3>
+    <p class="section-lede">
+      Standalone pages, each its own small wasm32 binary — best tried on a
+      phone for the GPS and tilt ones. All publish/subscribe on the same
+      zenoh graph as the two demos above, so e.g. the virtual robot page
+      will move in response to either teleop demo, even running on a
+      different device.
+    </p>
+    <div class="pillrow">
+      <a class="pill" href="demos/index_teleop.html" target="_blank" rel="noopener">⌨️ keyboard teleop</a>
+      <a class="pill" href="demos/index_imu.html" target="_blank" rel="noopener">📱 phone-tilt teleop</a>
+      <a class="pill" href="demos/index_gps.html" target="_blank" rel="noopener">📍 GPS</a>
+      <a class="pill" href="demos/index_camera.html" target="_blank" rel="noopener">📷 camera</a>
+      <a class="pill" href="demos/robot_view.html" target="_blank" rel="noopener">🤖 virtual robot</a>
+    </div>
+  </section>
+
   <section id="jupyterlite">
     <h2 class="h">JupyterLite demo</h2>
     <h3 class="section-title">The simple way in: plain HTTP, no wasm build required</h3>
@@ -154,7 +173,6 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
     <ul class="limits-list">
       <li><code>rmw_zenoh_pico</code> doesn't support publisher/subscriber QoS event callbacks yet — the demo nodes disable them explicitly rather than hitting an unhandled error.</li>
       <li>Its <code>TypeDescriptionService</code> isn't implemented either (would hang, not error) — disabled in the same way; parameter and rosout services are switched off at node construction for the same reason.</li>
-      <li><code>rosidl_typesupport_microxrcedds_cpp</code> doesn't generate typesupport for newer auto-generated service "<code>_Event</code>" messages — a handful of interface packages fall back to introspection-only typesupport, or get rebuilt with the C backend specifically where <code>rmw_zenoh_pico</code> needs it.</li>
       <li>The wasm32 build's zenoh connect address/port is compiled in (<code>127.0.0.1:7447</code>) rather than runtime-configurable — see the setup box above.</li>
     </ul>
   </section>

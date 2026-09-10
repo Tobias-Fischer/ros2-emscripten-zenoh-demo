@@ -1,11 +1,32 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>wasm32 rclc virtual robot (rmw_zenoh_pico)</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wasm32 rclc virtual robot — ROS 2 in WebAssembly</title>
+<link rel="stylesheet" href="demo-page.css" />
+</head>
 <body>
-<h1>wasm32 rclc virtual robot (rmw_zenoh_pico)</h1>
-<p>Subscribes to <code>geometry_msgs/Twist</code> on <code>cmd_vel</code> and dead-reckons a pose from it — drive it from <a href="index_teleop.html">index_teleop.html</a> (keyboard) or <a href="index_imu.html">index_imu.html</a> (phone tilt), open in another tab or device.</p>
-<canvas id="view" width="500" height="500" style="border:1px solid #888;"></canvas>
-<pre id="log" style="white-space:pre-wrap;"></pre>
+<div class="wrap">
+  <nav class="demo-nav">
+    <a href="index_rclc.html">rclc talker</a>
+    <a href="index_rclpy.html">rclpy talker</a>
+    <a href="index_teleop.html">keyboard teleop</a>
+    <a href="index_imu.html">phone tilt</a>
+    <a href="index_gps.html">GPS</a>
+    <a href="index_camera.html">camera</a>
+    <a href="robot_view.html" class="current">virtual robot</a>
+  </nav>
+  <h1>Virtual robot</h1>
+  <p class="lede">Subscribes to <code>geometry_msgs/Twist</code> on <code>cmd_vel</code> and dead-reckons a pose from it — drive it from <a href="index_teleop.html">keyboard teleop</a> or <a href="index_imu.html">phone tilt</a>, open in another tab or device.</p>
+  <div class="panel">
+    <canvas id="view" width="500" height="500" style="width:100%; max-width:500px; aspect-ratio:1;"></canvas>
+  </div>
+  <div class="panel">
+    <pre id="log"></pre>
+  </div>
+  <footer>wasm32 · rclc · rmw_zenoh_pico — part of <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo">ros2-emscripten-zenoh-demo</a></footer>
+</div>
 <script>
   const logEl = document.getElementById('log');
   var Module = {
@@ -34,7 +55,7 @@
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     // Trail.
-    ctx.strokeStyle = '#bbb';
+    ctx.strokeStyle = '#2a3548';
     ctx.beginPath();
     trail.forEach(([px, py], i) => (i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py)));
     ctx.stroke();
@@ -45,7 +66,7 @@
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(-theta);
-    ctx.fillStyle = '#2a6fdb';
+    ctx.fillStyle = '#5eead4';
     ctx.beginPath();
     ctx.moveTo(size, 0);
     ctx.lineTo(-size * 0.7, size * 0.6);

@@ -194,6 +194,16 @@ jobs:
           cp demo-repo/site/index.html demo-repo/site/style.css demo-repo/site/demo.js demo-repo/site/coi-serviceworker.js _pages/
           find demo-repo/browser_demo/out -maxdepth 1 -type f ! -name '*.html' -exec cp {} _pages/assets/ \;
           cp -r demo-repo/jupyterlite-content/_output _pages/jupyterlite
+          # The two demos above are embedded directly into index.html
+          # (demo.js drives them via the "Run demo" buttons, loading the
+          # assets/ copy above). Everything else in browser_demo/ --
+          # teleop, GPS, camera, IMU, robot_view, plus the same rclc/rclpy
+          # talkers as genuinely standalone pages -- ships as its own
+          # self-contained subtree instead: HTML alongside its .js/.wasm/
+          # .so files in the same directory, exactly like the local dev
+          # setup in docs/demo_env.md, so relative <script src="...">
+          # paths resolve the same way in both places.
+          cp -r demo-repo/browser_demo/out _pages/demos
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _pages

@@ -1,9 +1,29 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>wasm32 rclc + rmw_zenoh_pico talker</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wasm32 rclc talker — ROS 2 in WebAssembly</title>
+<link rel="stylesheet" href="demo-page.css" />
+</head>
 <body>
-<h1>wasm32 rclc talker (rmw_zenoh_pico)</h1>
-<pre id="log" style="white-space:pre-wrap;"></pre>
+<div class="wrap">
+  <nav class="demo-nav">
+    <a href="index_rclc.html" class="current">rclc talker</a>
+    <a href="index_rclpy.html">rclpy talker</a>
+    <a href="index_teleop.html">keyboard teleop</a>
+    <a href="index_imu.html">phone tilt</a>
+    <a href="index_gps.html">GPS</a>
+    <a href="index_camera.html">camera</a>
+    <a href="robot_view.html">virtual robot</a>
+  </nav>
+  <h1>rclc talker</h1>
+  <p class="lede">The minimal-footprint path: <code>rclc</code>, plain C, no interpreter — publishes <code>std_msgs/String</code> on <code>chatter</code> once a second.</p>
+  <div class="panel">
+    <pre id="log"></pre>
+  </div>
+  <footer>wasm32 · rclc · rmw_zenoh_pico — part of <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo">ros2-emscripten-zenoh-demo</a></footer>
+</div>
 <script>
   const logEl = document.getElementById('log');
   var Module = {

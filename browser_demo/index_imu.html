@@ -1,11 +1,32 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>wasm32 rclc IMU teleop (rmw_zenoh_pico)</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wasm32 rclc phone-tilt teleop — ROS 2 in WebAssembly</title>
+<link rel="stylesheet" href="demo-page.css" />
+</head>
 <body>
-<h1>wasm32 rclc IMU teleop (rmw_zenoh_pico)</h1>
-<p>Tilt your phone forward/back to drive, left/right to turn — publishes <code>geometry_msgs/Twist</code> on <code>cmd_vel</code> (same topic the keyboard teleop demo uses — open <a href="robot_view.html">robot_view.html</a> in another tab/device to watch a virtual robot follow it).</p>
-<button id="enable-btn">Enable motion controls</button>
-<pre id="log" style="white-space:pre-wrap;"></pre>
+<div class="wrap">
+  <nav class="demo-nav">
+    <a href="index_rclc.html">rclc talker</a>
+    <a href="index_rclpy.html">rclpy talker</a>
+    <a href="index_teleop.html">keyboard teleop</a>
+    <a href="index_imu.html" class="current">phone tilt</a>
+    <a href="index_gps.html">GPS</a>
+    <a href="index_camera.html">camera</a>
+    <a href="robot_view.html">virtual robot</a>
+  </nav>
+  <h1>Phone-tilt teleop</h1>
+  <p class="lede">Tilt your phone forward/back to drive, left/right to turn — publishes <code>geometry_msgs/Twist</code> on <code>cmd_vel</code> (same topic the keyboard teleop demo uses). Open <a href="robot_view.html">the virtual robot</a> in another tab or device to watch it follow along.</p>
+  <div class="panel">
+    <button id="enable-btn" class="primary">Enable motion controls</button>
+  </div>
+  <div class="panel">
+    <pre id="log"></pre>
+  </div>
+  <footer>wasm32 · rclc · rmw_zenoh_pico — part of <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo">ros2-emscripten-zenoh-demo</a></footer>
+</div>
 <script>
   const logEl = document.getElementById('log');
   var Module = {

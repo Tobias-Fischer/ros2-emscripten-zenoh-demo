@@ -115,4 +115,5 @@ cp "$PREFIX"/lib/*.so "$DEMO_DIR/out/"
 cp -L "$PREFIX"/microcdr-2.0.2/lib/*.so* "$DEMO_DIR/out/"
 find "$SP" -iname "*.so" -exec cp {} "$DEMO_DIR/out/" \;
 cp "$DEMO_DIR/index_rclpy.html" "$DEMO_DIR/out/index_rclpy.html"
+cp "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
 echo "Deployed $(find "$DEMO_DIR/out" -iname '*.so' | wc -l | tr -d ' ') shared libraries to $DEMO_DIR/out/"

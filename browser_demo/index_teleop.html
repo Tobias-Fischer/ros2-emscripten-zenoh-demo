@@ -1,16 +1,40 @@
 <!doctype html>
-<html>
-<head><meta charset="utf-8"><title>wasm32 rclc teleop (rmw_zenoh_pico)</title></head>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>wasm32 rclc teleop — ROS 2 in WebAssembly</title>
+<link rel="stylesheet" href="demo-page.css" />
+</head>
 <body>
-<h1>wasm32 rclc teleop (rmw_zenoh_pico)</h1>
-<p>Click here, then use <b>W/A/S/D</b> or the <b>arrow keys</b> to drive — publishes <code>geometry_msgs/Twist</code> on <code>cmd_vel</code>.</p>
-<pre id="log" style="white-space:pre-wrap;"></pre>
+<div class="wrap">
+  <nav class="demo-nav">
+    <a href="index_rclc.html">rclc talker</a>
+    <a href="index_rclpy.html">rclpy talker</a>
+    <a href="index_teleop.html" class="current">keyboard teleop</a>
+    <a href="index_imu.html">phone tilt</a>
+    <a href="index_gps.html">GPS</a>
+    <a href="index_camera.html">camera</a>
+    <a href="robot_view.html">virtual robot</a>
+  </nav>
+  <h1>Keyboard teleop</h1>
+  <p class="lede">Click the panel below, then use <b>W/A/S/D</b> or the arrow keys to drive — publishes <code>geometry_msgs/Twist</code> on <code>cmd_vel</code>. Open <a href="robot_view.html">the virtual robot</a> in another tab to watch it move.</p>
+  <div class="panel">
+    <pre id="log"></pre>
+  </div>
+  <footer>wasm32 · rclc · rmw_zenoh_pico — part of <a href="https://github.com/Tobias-Fischer/ros2-emscripten-zenoh-demo">ros2-emscripten-zenoh-demo</a></footer>
+</div>
 <script>
   const logEl = document.getElementById('log');
   var Module = {
     print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
     printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
-    // See index_rclc.html for why this is needed.
+    // zenohd's ws/ listener does a plain upgrade with no Sec-WebSocket-Protocol
+    // negotiation. Emscripten's socket layer defaults to requesting the
+    // "binary" subprotocol; RFC 6455 requires a client to fail the connection
+    // if the server doesn't echo back a subprotocol it offered, which real
+    // browsers enforce (curl does not, which is why a plain curl handshake
+    // looked fine). subprotocol: null skips requesting one entirely.
     websocket: { subprotocol: null },
   };
 

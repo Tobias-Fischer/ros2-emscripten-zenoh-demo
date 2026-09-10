@@ -73,4 +73,6 @@ em++ \
   "${LIBS[@]}" \
   -o "$DEMO_DIR/out/talker_rclc.js"
 
+cp "$DEMO_DIR/index_rclc.html" "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
+
 echo "Build finished: $DEMO_DIR/out/talker_rclc.js / talker_rclc.wasm"
