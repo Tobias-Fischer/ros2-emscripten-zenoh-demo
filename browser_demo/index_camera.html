@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>wasm32 rclc camera demo (rmw_zenoh_pico)</title></head>
+<body>
+<h1>wasm32 rclc camera demo (rmw_zenoh_pico)</h1>
+<p>Publishes webcam frames as <code>sensor_msgs/Image</code> on <code>camera/image</code> (160x120, rgb8). Falls back to a synthetic animated test pattern if no camera is available or permission is denied.</p>
+<canvas id="preview" width="160" height="120" style="border:1px solid #888; image-rendering:pixelated; width:320px; height:240px;"></canvas>
+<pre id="log" style="white-space:pre-wrap;"></pre>
+<script>
+  const logEl = document.getElementById('log');
+  var Module = {
+    print: (t) => { console.log(t); logEl.textContent += t + "\n"; },
+    printErr: (t) => { console.error(t); logEl.textContent += "[err] " + t + "\n"; },
+    // See index_rclc.html for why this is needed.
+    websocket: { subprotocol: null },
+  };
+
+  const WIDTH = 160;
+  const HEIGHT = 120;
+
+  // Same shared-memory pattern as index_teleop.html / index_gps.html:
+  // main() runs on a pthread Web Worker with no DOM/getUserMedia access,
+  // so all the frame capture lives here on the page's real main thread,
+  // writing raw RGB8 pixels directly into wasm linear memory at the
+  // address camera_get_frame_buffer_ptr() exports. See camera_rclc.c.
+  //
+  // Unlike teleop/gps's state structs (statically allocated -- their
+  // address is valid the instant the wasm module is instantiated), the
+  // image buffer is malloc'd by main() itself once it actually runs on
+  // its worker thread, which -sPROXY_TO_PTHREAD=1 makes asynchronous
+  // relative to onRuntimeInitialized. Calling
+  // camera_get_frame_buffer_ptr() too early gets back a null pointer,
+  // and writing "pixels" starting at address 0 crashes the whole runtime
+  // with "memory access out of bounds" -- so poll until main() has
+  // actually allocated it.
+  function pollForFrameBufferPtr() {
+    return new Promise((resolve) => {
+      const tryOnce = () => {
+        const ptr = Module.ccall('camera_get_frame_buffer_ptr', 'number', [], []);
+        if (ptr !== 0) {
+          resolve(ptr);
+        } else {
+          setTimeout(tryOnce, 50);
+        }
+      };
+      tryOnce();
+    });
+  }
+
+  Module.onRuntimeInitialized = async () => {
+    const framePtr = await pollForFrameBufferPtr();
+
+    const canvas = document.getElementById('preview');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const video = document.createElement('video');
+    video.width = WIDTH;
+    video.height = HEIGHT;
+    video.muted = true;
+
+    let usingCamera = false;
+
+    function writeFrameFromCanvas() {
+      const imageData = ctx.getImageData(0, 0, WIDTH, HEIGHT).data; // RGBA
+      // RGBA -> RGB8, straight into wasm memory. WIDTH*HEIGHT*4 source
+      // bytes in, WIDTH*HEIGHT*3 destination bytes out -- small enough
+      // (19200 pixels) that a plain per-pixel loop is fine at 2 Hz.
+      let dst = framePtr;
+      for (let i = 0; i < imageData.length; i += 4) {
+        Module.HEAPU8[dst] = imageData[i];
+        Module.HEAPU8[dst + 1] = imageData[i + 1];
+        Module.HEAPU8[dst + 2] = imageData[i + 2];
+        dst += 3;
+      }
+    }
+
+    let patternT = 0;
+    function drawSyntheticPattern() {
+      // A moving diagonal gradient plus a bouncing block -- enough
+      // motion to see it's live, cheap enough to redraw every tick.
+      const grad = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
+      const hue = (patternT * 4) % 360;
+      grad.addColorStop(0, `hsl(${hue}, 70%, 50%)`);
+      grad.addColorStop(1, `hsl(${(hue + 120) % 360}, 70%, 50%)`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      const bx = (Math.sin(patternT / 15) * 0.5 + 0.5) * (WIDTH - 20);
+      const by = (Math.cos(patternT / 11) * 0.5 + 0.5) * (HEIGHT - 20);
+      ctx.fillStyle = 'white';
+      ctx.fillRect(bx, by, 20, 20);
+      ctx.fillStyle = 'black';
+      ctx.font = '10px monospace';
+      ctx.fillText('no camera - test pattern', 4, 12);
+      patternT++;
+    }
+
+    function tick() {
+      if (usingCamera) {
+        ctx.drawImage(video, 0, 0, WIDTH, HEIGHT);
+      } else {
+        drawSyntheticPattern();
+      }
+      writeFrameFromCanvas();
+    }
+
+    // Runs independently of the C-side publish timer (2 Hz) -- this just
+    // keeps the buffer fresh; whatever's there when the worker's timer
+    // fires next is what gets published.
+    setInterval(tick, 500);
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ video: { width: WIDTH, height: HEIGHT }, audio: false })
+        .then((stream) => {
+          video.srcObject = stream;
+          video.play();
+          usingCamera = true;
+          console.log('camera: using real webcam');
+        })
+        .catch((err) => {
+          logEl.textContent += "[err] getUserMedia: " + err.message + " (using synthetic test pattern instead)\n";
+        });
+    } else {
+      logEl.textContent += "[err] getUserMedia not available (using synthetic test pattern instead)\n";
+    }
+  };
+</script>
+<script src="camera_rclc.js"></script>
+</body>
+</html>
