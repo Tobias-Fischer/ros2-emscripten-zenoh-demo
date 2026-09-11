@@ -14,8 +14,8 @@ name: Build and deploy demo site
 # closure from source, which can take a couple of hours; actions/cache
 # keyed on the recipe/patch inputs makes every run after the first one, for
 # unrelated changes (e.g. editing site/index.html), fast — the ROS package
-# and pthreads-python/numpy builds hit cache and skip straight to relinking
-# the talkers and rebuilding the (small, fast) JupyterLite notebook.
+# build hits cache and skips straight to relinking the talkers and
+# rebuilding the (small, fast) JupyterLite notebook.
 
 on:
   workflow_dispatch:
@@ -25,8 +25,8 @@ on:
         default: "Tobias-Fischer/ros-rolling@feature/emscripten-wasm32-zenoh-pico"
         required: false
       recipes_ref:
-        description: "emscripten-forge-recipes source, pthreads python/numpy (fork@branch)"
-        default: "Tobias-Fischer/emscripten-forge-recipes@wasm-pthreads-python-numpy-orphan"
+        description: "emscripten-forge-recipes source, for the cross-python_emscripten-wasm32 toolchain package ros-rolling's own build needs (fork@branch)"
+        default: "Tobias-Fischer/emscripten-forge-recipes@main"
         required: false
   push:
     branches: [main]
@@ -64,7 +64,7 @@ jobs:
         id: refs
         run: |
           ros_ref="${{ inputs.ros_rolling_ref || 'Tobias-Fischer/ros-rolling@feature/emscripten-wasm32-zenoh-pico' }}"
-          rec_ref="${{ inputs.recipes_ref || 'Tobias-Fischer/emscripten-forge-recipes@wasm-pthreads-python-numpy-orphan' }}"
+          rec_ref="${{ inputs.recipes_ref || 'Tobias-Fischer/emscripten-forge-recipes@main' }}"
           echo "ros_repo=${ros_ref%@*}" >> "$GITHUB_OUTPUT"
           echo "ros_branch=${ros_ref#*@}" >> "$GITHUB_OUTPUT"
           echo "rec_repo=${rec_ref%@*}" >> "$GITHUB_OUTPUT"
@@ -105,37 +105,22 @@ jobs:
           restore-keys: |
             rattler-pkgcache-${{ runner.os }}-
 
-      # ---- pthreads CPython + numpy -------------------------------------
+      # ---- cross-python_emscripten-wasm32 toolchain package -------------
+      # ros-rolling's own build needs this as a local channel entry
+      # (emscripten-forge-4x doesn't publish it yet -- see its pixi.toml's
+      # build-emscripten-pass comment). This is a build-time cross-compile
+      # tool, unrelated to whether the target python/numpy build uses
+      # pthreads -- demo_env itself now pulls stock python/numpy straight
+      # from emscripten-forge-4x (see demo_env_build/pixi.toml.in).
       - uses: actions/cache@v6
         id: recipes-cache
         with:
           path: emscripten-forge-recipes/output
-          key: emscripten-forge-recipes-output-${{ hashFiles('emscripten-forge-recipes/recipes/recipes_emscripten/python/**', 'emscripten-forge-recipes/recipes/recipes_emscripten/numpy/**', 'emscripten-forge-recipes/recipes/recipes/cross-python_emscripten-wasm32/**') }}
+          key: emscripten-forge-recipes-output-${{ hashFiles('emscripten-forge-recipes/recipes/recipes/cross-python_emscripten-wasm32/**') }}
 
-      - name: Build pthreads python + numpy (wasm32)
+      - name: Build cross-python_emscripten-wasm32 toolchain package
         working-directory: emscripten-forge-recipes
-        run: |
-          if ! ls output/emscripten-wasm32/python-3.13.1-*.tar.bz2 >/dev/null 2>&1; then
-            pixi run -e rattler-build-env build-emscripten-wasm32-pkg recipes/recipes_emscripten/python
-          else
-            echo "python already built (cache hit), skipping"
-          fi
-          # Not run via the build-emscripten-wasm32-pkg task: that task's
-          # cmd doesn't pass --test skip, and this recipe's own pytester
-          # test loads the .so in a non-pthread harness and fails there on
-          # purpose -- unrelated to whether the build itself worked
-          # (see docs/demo_env.md in the main repo).
-          if ! ls output/emscripten-wasm32/numpy-2.5.3-*.tar.bz2 >/dev/null 2>&1; then
-            pixi run -e rattler-build-env rattler-build build \
-              --package-format tar-bz2 \
-              -c https://repo.prefix.dev/emscripten-forge-4x -c microsoft -c conda-forge \
-              -c "file://$(pwd)/output" \
-              --target-platform emscripten-wasm32 --skip-existing none -m variant.yaml \
-              --test skip \
-              --recipe recipes/recipes_emscripten/numpy
-          else
-            echo "numpy already built (cache hit), skipping"
-          fi
+        run: pixi run -e rattler-build-env build-cross-python-pkg
 
       # ---- ros-rolling emscripten-wasm32 + rmw_zenoh_pico closure -------
       # ros-rolling's own pixi.toml build-emscripten task hardcodes
@@ -153,15 +138,15 @@ jobs:
           path: ros-rolling/output
           key: ros-rolling-emscripten-output-${{ hashFiles('ros-rolling/vinca.yaml', 'ros-rolling/robostack.yaml', 'ros-rolling/patch/**', 'ros-rolling/pkg_additional_info.yaml', 'ros-rolling/rosdistro_snapshot.yaml', 'ros-rolling/vinca_pinning.yaml', 'ros-rolling/conda_build_config.yaml', 'ros-rolling/pixi.toml') }}
 
-      # Runs the native build-dependency bootstrap mirror/build cycle
-      # documented at the top of build_ros_rolling_closure.sh (and in more
-      # detail in ros-rolling's own pixi.toml) until nothing new gets
-      # built, then verifies every recipe actually produced a package --
-      # exactly the sequence that was actually run and verified (both
-      # talkers, independently confirmed via the zenohd router's own REST
-      # API) building this from a genuinely empty output/ directory. Fails
-      # loudly if anything is still missing afterwards, rather than
-      # silently deploying an incomplete closure.
+      # Runs ros-rolling's own deterministic build-emscripten task (build,
+      # sync the native-mirror workaround, build again -- see that task's
+      # comment in pixi.toml) and then verifies every recipe actually
+      # produced a package -- exactly the sequence that was actually run
+      # and verified (both talkers, independently confirmed via the
+      # zenohd router's own REST API) building this from a genuinely
+      # empty output/ directory. Fails loudly if anything is still
+      # missing afterwards, rather than silently deploying an incomplete
+      # closure.
       - name: Build the full emscripten-wasm32 + rmw_zenoh_pico closure
         working-directory: ros-rolling
         run: bash ../demo-repo/.github/scripts/build_ros_rolling_closure.sh
@@ -170,7 +155,6 @@ jobs:
       - name: Assemble demo_env
         env:
           ROS_ROLLING_OUTPUT: ${{ github.workspace }}/ros-rolling/output
-          EMSCRIPTEN_FORGE_OUTPUT: ${{ github.workspace }}/emscripten-forge-recipes/output
         run: ./demo-repo/demo_env_build/build.sh
 
       - name: Build all browser_demo pages
@@ -195,9 +179,8 @@ jobs:
       # JupyterLite's own pages never load coi-serviceworker.js -- only
       # site/index.html does -- so a visitor opening a JupyterLite link
       # directly (our own "Open the notebook" button included) gets no
-      # cross-origin isolation on GitHub Pages, and xeus-python's pthreads
-      # runtime hangs without SharedArrayBuffer instead of erroring. See
-      # the script for the full explanation.
+      # cross-origin isolation on GitHub Pages. See the script for the
+      # full explanation.
       - name: Cross-origin isolation for JupyterLite pages
         run: |
           python3 demo-repo/.github/scripts/inject_coi_serviceworker.py \

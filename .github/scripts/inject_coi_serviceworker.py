@@ -7,9 +7,7 @@ load it. GitHub Pages can't send custom response headers, so a visitor who
 opens a JupyterLite page directly -- exactly what our own "Open the
 notebook" button does, and what anyone does on a fresh/incognito visit --
 gets no COOP/COEP headers and therefore no cross-origin isolation on that
-page. xeus-python's pthreads runtime needs SharedArrayBuffer for that, and
-hangs rather than erroring without it, which is what "gets stuck executing
-the first cell" was.
+page, which is what "gets stuck executing the first cell" was.
 
 Run after `jupyter lite build`, before the built _output/ is copied into
 the Pages payload. Usage:
