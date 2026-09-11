@@ -204,12 +204,25 @@ jobs:
             demo-repo/jupyterlite-content/_output demo-repo/site/coi-serviceworker.js
 
       # ---- assemble and deploy --------------------------------------------
+      # Every wasm binary + its ~90-file .so dependency closure lives under
+      # _pages/v/<short-sha>/ -- a fresh, never-reused path on every deploy --
+      # instead of a fixed one. A CDN edge that's mid-propagation after a
+      # deploy can then only ever serve a fully-old or fully-new set of
+      # files for a given page load, never a mix of an old .js glue script
+      # against a new .wasm/.so (the LinkError this project hit once
+      # already): the two can't collide on a shared URL if there isn't one.
+      # index.html/style.css/demo.js/coi-serviceworker.js stay at a stable
+      # top-level path since they carry no matching binary to go stale
+      # against and are what a visitor actually bookmarks/reloads.
       - name: Assemble Pages payload
         run: |
-          mkdir -p _pages/assets
-          cp demo-repo/site/index.html demo-repo/site/style.css demo-repo/site/demo.js demo-repo/site/coi-serviceworker.js _pages/
-          find demo-repo/browser_demo/out -maxdepth 1 -type f ! -name '*.html' -exec cp {} _pages/assets/ \;
-          cp -r demo-repo/jupyterlite-content/_output _pages/jupyterlite
+          ASSET_VERSION="${GITHUB_SHA::8}"
+          mkdir -p "_pages/v/$ASSET_VERSION/assets"
+          sed "s/%%ASSET_VERSION%%/$ASSET_VERSION/g" demo-repo/site/index.html > _pages/index.html
+          sed "s/%%ASSET_VERSION%%/$ASSET_VERSION/g" demo-repo/site/demo.js > _pages/demo.js
+          cp demo-repo/site/style.css demo-repo/site/coi-serviceworker.js _pages/
+          find demo-repo/browser_demo/out -maxdepth 1 -type f ! -name '*.html' -exec cp {} "_pages/v/$ASSET_VERSION/assets/" \;
+          cp -r demo-repo/jupyterlite-content/_output "_pages/v/$ASSET_VERSION/jupyterlite"
           # The two demos above are embedded directly into index.html
           # (demo.js drives them via the "Run demo" buttons, loading the
           # assets/ copy above). Everything else in browser_demo/ --
@@ -219,7 +232,7 @@ jobs:
           # .so files in the same directory, exactly like the local dev
           # setup in docs/demo_env.md, so relative <script src="...">
           # paths resolve the same way in both places.
-          cp -r demo-repo/browser_demo/out _pages/demos
+          cp -r demo-repo/browser_demo/out "_pages/v/$ASSET_VERSION/demos"
       - uses: actions/upload-pages-artifact@v5
         with:
           path: _pages

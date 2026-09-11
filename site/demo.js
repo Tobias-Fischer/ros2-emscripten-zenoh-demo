@@ -6,10 +6,10 @@
 (function () {
   const DEMOS = {
     rclc: {
-      script: "assets/talker_rclc.js",
+      script: "v/%%ASSET_VERSION%%/assets/talker_rclc.js",
     },
     rclpy: {
-      script: "assets/rclpy_boot.js",
+      script: "v/%%ASSET_VERSION%%/assets/rclpy_boot.js",
     },
   };
 
