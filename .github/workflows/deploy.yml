@@ -203,6 +203,18 @@ jobs:
           python3 demo-repo/.github/scripts/inject_coi_serviceworker.py \
             demo-repo/jupyterlite-content/_output demo-repo/site/coi-serviceworker.js
 
+      # emscripten-forge/pyjs's Proxy get-trap forwards any missing
+      # property straight to Python's getattr(), Symbol-keyed ones
+      # included -- crashes the instant anything (a console.log, a
+      # thenable check) probes a wrapped Python object. xpython.js is a
+      # prebuilt kernel package jupyterlite-xeus downloads, not something
+      # this repo compiles, so this patches its text directly. See the
+      # script for the full explanation.
+      - name: Fix pyjs Proxy get-trap Symbol-key crash in the JupyterLite kernel
+        run: |
+          python3 demo-repo/.github/scripts/patch_xpython_js.py \
+            demo-repo/jupyterlite-content/_output/xeus/demo_env/bin/xpython.js
+
       # ---- assemble and deploy --------------------------------------------
       # Every wasm binary + its ~90-file .so dependency closure lives under
       # _pages/v/<short-sha>/ -- a fresh, never-reused path on every deploy --
