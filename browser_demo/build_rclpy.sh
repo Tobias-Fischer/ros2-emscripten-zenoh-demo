@@ -12,6 +12,14 @@ command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run 
 
 mkdir -p "$DEMO_DIR/out"
 
+# The emscripten-forge toolchain env's own activation script sets
+# EMCC_CFLAGS="... -sSUPPORT_LONGJMP=wasm -fwasm-exceptions" globally --
+# every em++ call gets native wasm exception-handling by default, which
+# crashes binaryen's Asyncify pass outright ("UNREACHABLE executed ...
+# Asyncify.cpp"), not just compiles slower. Override it here, dropping just
+# the exception-handling part (matching the toolchain's own base flags).
+export EMCC_CFLAGS="-O2 -g0 -fPIC -msimd128"
+
 # See build_rclc.sh's comment above its own LIBS array for how a list like
 # this gets found (empirically, not from a manifest) and what it actually
 # means for -sMAIN_MODULE=2. The extra entries here under $SP are the same
@@ -58,7 +66,6 @@ LIBS=(
   "$SP/type_description_interfaces/type_description_interfaces_s__rosidl_typesupport_c.so"
   "$SP/service_msgs/service_msgs_s__rosidl_typesupport_c.so"
   "$SP/numpy/_core/_multiarray_umath.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/_core/_simd.cpython-313-wasm32-emscripten.so"
   "$SP/numpy/linalg/_umath_linalg.cpython-313-wasm32-emscripten.so"
   "$SP/numpy/linalg/lapack_lite.cpython-313-wasm32-emscripten.so"
   "$SP/numpy/fft/_pocketfft_umath.cpython-313-wasm32-emscripten.so"
@@ -85,20 +92,18 @@ done
 # 64 MB ("wasm-ld: error: initial memory too small, ~80.7 MB needed"); 128 MB
 # below leaves real headroom rather than just clearing today's number.
 em++ \
-  -std=c11 -pthread -x c \
+  -std=c11 -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
   "${INCLUDE_FLAGS[@]}" \
-  -s USE_PTHREADS=1 \
-  -sPROXY_TO_PTHREAD=1 \
   -sMAIN_MODULE=2 \
   -s ASSERTIONS=1 \
   -fexceptions \
   -sWASM_BIGINT \
   -s USE_ZLIB=1 -s USE_SQLITE3=1 -s USE_BZIP2=1 \
   -lwebsocket.js \
-  -s PTHREAD_POOL_SIZE=4 \
+  -sASYNCIFY -s ASYNCIFY_STACK_SIZE=24576 \
   -s ALLOW_MEMORY_GROWTH=1 \
-  -s STACK_SIZE=5MB -s DEFAULT_PTHREAD_STACK_SIZE=5MB \
+  -s STACK_SIZE=5MB \
   -s INITIAL_MEMORY=134217728 -s MAXIMUM_MEMORY=1024MB \
   --embed-file "$PY/lib/python3.13@/pyhome/lib/python3.13" \
   --embed-file "$DEMO_DIR/talker_rclpy.py@/pyhome/talker_rclpy.py" \

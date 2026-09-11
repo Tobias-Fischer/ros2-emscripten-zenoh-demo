@@ -12,6 +12,14 @@ command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run 
 
 mkdir -p "$DEMO_DIR/out"
 
+# The emscripten-forge toolchain env's own activation script sets
+# EMCC_CFLAGS="... -sSUPPORT_LONGJMP=wasm -fwasm-exceptions" globally --
+# every em++ call gets native wasm exception-handling by default, which
+# crashes binaryen's Asyncify pass outright ("UNREACHABLE executed ...
+# Asyncify.cpp"), not just compiles slower. Override it here, dropping just
+# the exception-handling part (matching the toolchain's own base flags).
+export EMCC_CFLAGS="-O2 -g0 -fPIC -msimd128"
+
 # Same LIBS set as build_rclc.sh, plus geometry_msgs' own generator/
 # typesupport .so's (same 4-library pattern std_msgs needed: generator_c,
 # typesupport_c, typesupport_introspection_c, typesupport_microxrcedds_c).
@@ -41,11 +49,9 @@ for d in "$PREFIX"/include/*/; do
 done
 
 em++ \
-  -std=c11 -pthread -x c \
+  -std=c11 -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
   "${INCLUDE_FLAGS[@]}" \
-  -s USE_PTHREADS=1 \
-  -sPROXY_TO_PTHREAD=1 \
   -sMAIN_MODULE=2 \
   -s ASSERTIONS=1 \
   -fexceptions \
@@ -54,7 +60,7 @@ em++ \
   -sEXPORTED_RUNTIME_METHODS=ccall,HEAPF64,stringToUTF8,callMain \
   -lwebsocket.js \
   -sSOCKET_DEBUG=1 \
-  -s PTHREAD_POOL_SIZE=4 \
+  -sASYNCIFY -s ASYNCIFY_STACK_SIZE=24576 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s MAXIMUM_MEMORY=1024MB \
   -L"$PREFIX/lib" \
