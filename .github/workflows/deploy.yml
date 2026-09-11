@@ -211,16 +211,24 @@ jobs:
       # files for a given page load, never a mix of an old .js glue script
       # against a new .wasm/.so (the LinkError this project hit once
       # already): the two can't collide on a shared URL if there isn't one.
-      # index.html/style.css/demo.js/coi-serviceworker.js stay at a stable
-      # top-level path since they carry no matching binary to go stale
-      # against and are what a visitor actually bookmarks/reloads.
+      # demo.js/style.css go in the same versioned directory: GitHub Pages
+      # serves non-HTML files with a 31-day Cache-Control, so demo.js's OWN
+      # reference to the versioned assets/ path would otherwise be stuck
+      # pointing at a since-deleted deploy's directory for up to a month on
+      # any CDN edge that already had it cached (confirmed live: the
+      # previous deploy's demo.js was still being served from Cloudflare's
+      # cache 31+ hours later). Only index.html and coi-serviceworker.js
+      # stay at a stable top-level path -- index.html gets a short
+      # max-age from GitHub Pages, and coi-serviceworker.js's own content
+      # doesn't change per-deploy the way demo.js's asset paths do.
       - name: Assemble Pages payload
         run: |
           ASSET_VERSION="${GITHUB_SHA::8}"
           mkdir -p "_pages/v/$ASSET_VERSION/assets"
           sed "s/%%ASSET_VERSION%%/$ASSET_VERSION/g" demo-repo/site/index.html > _pages/index.html
-          sed "s/%%ASSET_VERSION%%/$ASSET_VERSION/g" demo-repo/site/demo.js > _pages/demo.js
-          cp demo-repo/site/style.css demo-repo/site/coi-serviceworker.js _pages/
+          cp demo-repo/site/coi-serviceworker.js _pages/
+          sed "s/%%ASSET_VERSION%%/$ASSET_VERSION/g" demo-repo/site/demo.js > "_pages/v/$ASSET_VERSION/demo.js"
+          cp demo-repo/site/style.css "_pages/v/$ASSET_VERSION/style.css"
           find demo-repo/browser_demo/out -maxdepth 1 -type f ! -name '*.html' -exec cp {} "_pages/v/$ASSET_VERSION/assets/" \;
           cp -r demo-repo/jupyterlite-content/_output "_pages/v/$ASSET_VERSION/jupyterlite"
           # The two demos above are embedded directly into index.html
