@@ -51,20 +51,6 @@ for d in "$PREFIX"/include/*/; do
   INCLUDE_FLAGS+=(-I"${d%/}")
 done
 
-# PTHREAD_POOL_SIZE=16 below, not the default handful: this MAIN_MODULE=2
-# build dlopen's ~90 .so files on startup, and instantiating that many wasm
-# modules across too few pre-spawned pool workers can deadlock outright
-# rather than just run slow -- reproduced live (embedded "Run demo" card,
-# real router running): every .so fetched fine (200s across the board) and
-# several pool workers reached initRuntime, then it sat at "still waiting
-# on run dependencies: dependency: loadDylibs" with zero further output,
-# indefinitely. A standalone demo page loading the identical .so closure
-# via a fresh navigation (no service worker fetch-wrapping in front of it)
-# didn't reproduce it in repeated local tries at the old size 4 -- so this
-# looks like ordinary pool-exhaustion, just one that only bites once fetch
-# latency (here, coi-serviceworker.js's retry-wrapped requests) stretches
-# the window where enough loads are in flight at once to exceed the pool.
-# Confirmed fixed at 16 against the live site.
 em++ \
   -std=c11 -pthread -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
@@ -79,7 +65,7 @@ em++ \
   -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,callMain \
   -lwebsocket.js \
   -sSOCKET_DEBUG=1 \
-  -s PTHREAD_POOL_SIZE=16 \
+  -s PTHREAD_POOL_SIZE=4 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s MAXIMUM_MEMORY=1024MB \
   -L"$PREFIX/lib" \

@@ -5,9 +5,22 @@
 // that card's console panel, then inject the glue script tag.
 (function () {
   const DEMOS = {
+    // talker_rclc.js is linked with -sINVOKE_RUN=0 (see build_rclc.sh) so a
+    // standalone page can set the runtime-configurable zenoh connect address
+    // via zenoh_get_connect_host_buf()/...port_buf() before main() opens the
+    // session, then call Module.callMain() itself once that's done -- see
+    // index_rclc.html. This card has no such address to set, but still has
+    // to make that same explicit call, or main() simply never runs: the
+    // runtime loads every dylib and spins up every pthread pool worker
+    // regardless, then sits at "still waiting on run dependencies" forever
+    // with no error, since nothing ever asked it to call main(). Confirmed
+    // live and locally -- calling Module.callMain([]) by hand on an
+    // already-"stuck" page unblocks it immediately.
     rclc: {
       script: "v/%%ASSET_VERSION%%/assets/talker_rclc.js",
+      needsCallMain: true,
     },
+    // rclpy_boot.js has no such flag and auto-runs main() on its own.
     rclpy: {
       script: "v/%%ASSET_VERSION%%/assets/rclpy_boot.js",
     },
@@ -68,6 +81,10 @@
         }
       },
     };
+
+    if (cfg.needsCallMain) {
+      window.Module.onRuntimeInitialized = () => window.Module.callMain([]);
+    }
 
     const s = document.createElement("script");
     s.src = cfg.script;

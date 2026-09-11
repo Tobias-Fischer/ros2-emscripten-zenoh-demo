@@ -43,9 +43,6 @@ for d in "$PREFIX"/include/*/; do
   INCLUDE_FLAGS+=(-I"${d%/}")
 done
 
-# PTHREAD_POOL_SIZE=16 below, not the default handful -- too few pool
-# workers for this many concurrently dlopen'd .so files can deadlock
-# outright, not just run slow. See build_rclc.sh for the full diagnosis.
 em++ \
   -std=c11 -pthread -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
@@ -60,7 +57,7 @@ em++ \
   -sEXPORTED_RUNTIME_METHODS=ccall,HEAPU8,stringToUTF8,callMain \
   -lwebsocket.js \
   -sSOCKET_DEBUG=1 \
-  -s PTHREAD_POOL_SIZE=16 \
+  -s PTHREAD_POOL_SIZE=4 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s MAXIMUM_MEMORY=1024MB \
   -L"$PREFIX/lib" \
