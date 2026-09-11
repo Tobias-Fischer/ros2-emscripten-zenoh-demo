@@ -129,21 +129,24 @@ install step needed.
 
 ## Running a native zenoh router
 
-The wasm32 build connects to `127.0.0.1:7447` (a loopback address, so a
-browser will reach it from an `https://` page too — see the live site's
-own setup instructions for the `ros2 run rmw_zenoh_cpp rmw_zenohd` way to
-start one). To run the standalone binary directly instead:
+The wasm32 build connects to `127.0.0.1:7447` by default (a loopback
+address, so a browser will reach it from an `https://` page too).
+`zenohd` is a plain [conda-forge](https://conda-forge.org/) package, so
+[pixi](https://pixi.sh/)'s `exec` installs and runs it in one line, no
+project directory or manual binary download needed:
 
 ```bash
-gh release download 1.10.1 --repo eclipse-zenoh/zenoh \
-  --pattern "*aarch64-apple-darwin-standalone.zip"  # pick your platform's asset
-unzip *.zip -d zenoh_router && cd zenoh_router
-./zenohd -l tcp/127.0.0.1:7448 -l ws/127.0.0.1:7447 --no-multicast-scouting
+pixi exec --with zenohd -c conda-forge \
+  zenohd -l ws/127.0.0.1:7447 --no-multicast-scouting
 ```
 
 (`rmw_zenoh_pico`'s wasm32 build defaults to connecting to `127.0.0.1:7447`
 — see `RMW_ZENOH_PICO_CONNECT_PORT` in its `config.h` — so the `ws/` listener
-above has to be on that exact port unless you rebuild with a different one.)
+above has to be on that exact port unless you override it. The 6 rclc-based
+`browser_demo/` pages *are* runtime-configurable now, via
+`rmw_zenoh_pico_set_unicast()` — see each page's "zenoh router" field, or
+`?zenoh_host=&zenoh_port=` in the URL; the rclpy talker still only connects
+to the compiled-in default.)
 
 ## Reproducing the rclpy demo
 

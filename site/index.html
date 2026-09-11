@@ -73,27 +73,16 @@
     </p>
 
     <div class="setup-box">
-      <b>Do this first — run a local zenoh router the ROS 2&nbsp;way:</b>
-      <p style="margin:8px 0 0;">The router is a normal <code>ros2 run</code> command
-      (<code>rmw_zenoh_cpp</code> ships it as <code>rmw_zenohd</code>) —
+      <b>Do this first — run a local zenoh router:</b>
+      <p style="margin:8px 0 0;"><code>zenohd</code> is a plain
+      <a href="https://conda-forge.org/" target="_blank" rel="noopener">conda-forge</a> package —
       <a href="https://pixi.sh/" target="_blank" rel="noopener">pixi</a>'s <code>exec</code>
-      installs it into a throwaway environment and runs it in one line, no project
-      directory needed:</p>
-      <pre>pixi exec --with ros-humble-rmw-zenoh-cpp --with ros-humble-ros2cli --with ros-humble-ros2run \
-  -c robostack-staging -c conda-forge \
-  ros2 run rmw_zenoh_cpp rmw_zenohd</pre>
-      <p style="margin:10px 0 0;">(<code>rmw_zenohd</code> just starts a router process — it
-      works regardless of which ROS distro your own nodes use. <code>robostack-staging</code>
-      only has a <code>humble</code> build of the package today; a <code>rolling</code> one
-      isn't published yet.)</p>
-      <details style="margin-top:12px;">
-        <summary style="cursor:pointer; color:var(--text-dim);">No ROS/pixi installed? Run the standalone zenohd binary instead</summary>
-        <pre style="margin-top:10px;">gh release download 1.10.1 --repo eclipse-zenoh/zenoh --pattern "*&lt;your-platform&gt;-standalone.zip"
-unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
-./zenohd -l tcp/127.0.0.1:7448 -l ws/127.0.0.1:7447 --no-multicast-scouting</pre>
-      </details>
-      <p style="margin:12px 0 0;">Either way: once the router's up, just click "Run demo"
-      below — no page reload needed.</p>
+      installs it into a throwaway environment and runs it in one line, no ROS
+      or project directory needed (just <a href="https://pixi.sh/latest/#installation" target="_blank" rel="noopener">pixi itself</a>):</p>
+      <pre>pixi exec --with zenohd -c conda-forge \
+  zenohd -l ws/127.0.0.1:7447 --no-multicast-scouting</pre>
+      <p style="margin:10px 0 0;">Once it's up, just click "Run demo" below — no page reload
+      needed.</p>
     </div>
 
     <div class="demo-card" data-demo="rclc">
