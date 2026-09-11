@@ -1,20 +1,28 @@
 // wasm32 rclc camera demo: the browser's webcam (or, if unavailable, a
-// synthetic animated test pattern) drives a sensor_msgs/Image publisher
-// on 'camera/image'.
+// synthetic animated test pattern) drives a sensor_msgs/CompressedImage
+// publisher on 'camera/image'.
 //
 // Same architecture as teleop_rclc.c / gps_rclc.c (see teleop_rclc.c for
 // the full rationale): -sPROXY_TO_PTHREAD=1 means main() runs on a
 // pthread Web Worker with no DOM/getUserMedia access, so all the canvas
 // capture lives in plain JS in index_camera.html (the real main thread),
-// writing raw RGB8 pixels directly into wasm linear memory. The
-// worker-side timer callback just publishes whatever's currently there,
-// unlike teleop/gps there's no "has data yet" flag needed for this one --
-// the test-pattern fallback means there's always *something* real to
+// which JPEG-encodes each frame (canvas.toBlob('image/jpeg')) and writes
+// the compressed bytes directly into wasm linear memory. The worker-side
+// timer callback just publishes whatever's currently there, unlike
+// teleop/gps there's no "has data yet" flag needed for this one -- the
+// test-pattern fallback means there's always *something* real to
 // publish, camera permission or not.
 //
-// Fixed at a small, deliberately modest resolution: this is a demo over
-// a browser WebSocket, not a real camera driver, and RGB8 has no
-// compression (160x120x3 = 57600 bytes/frame already).
+// Originally published raw sensor_msgs/Image (rgb8, no compression --
+// 160x120x3 = 57600 bytes/frame), capped at 2 Hz specifically to avoid
+// flooding the websocket with that -- which made the demo feel laggy in
+// exactly the way sending uncompressed video always does. JPEG typically
+// gets a frame this size under 5 KB, which is why the timer below can run
+// an order of magnitude faster than the old raw-frame version while still
+// using a fraction of the bandwidth. The buffer is sized for a
+// comfortable worst case (MAX_JPEG_BYTES), not the actual per-frame size
+// -- see camera_set_frame_length() for how JS reports how much of it is
+// actually valid on a given frame.
 #include <stdio.h>
 #include <string.h>
 
@@ -48,7 +56,7 @@ char * zenoh_get_connect_port_buf(void) { return zenoh_connect_port; }
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
-#include <sensor_msgs/msg/image.h>
+#include <sensor_msgs/msg/compressed_image.h>
 #include <rosidl_runtime_c/string_functions.h>
 #include <rosidl_runtime_c/primitives_sequence_functions.h>
 
@@ -68,27 +76,41 @@ char * zenoh_get_connect_port_buf(void) { return zenoh_connect_port; }
 
 #define IMG_WIDTH 160
 #define IMG_HEIGHT 120
-#define IMG_CHANNELS 3
+// A worst-case comfortable ceiling for a JPEG-compressed 160x120 frame --
+// real frames from index_camera.html's canvas.toBlob('image/jpeg', 0.7)
+// are typically 2-6 KB. camera_set_frame_length() clamps to this, so an
+// unexpectedly busy/noisy frame degrades (truncated data, a visibly bad
+// frame) rather than overflowing the buffer.
+#define MAX_JPEG_BYTES 32768
 
 rcl_publisher_t publisher;
-sensor_msgs__msg__Image msg;
+sensor_msgs__msg__CompressedImage msg;
 
-// index_camera.html writes raw RGB8 pixels here every animation frame
-// (main thread, from a <video>/getUserMedia frame or the synthetic
-// fallback pattern -- either way, the same fixed-size buffer); the
-// worker-side timer callback below just publishes whatever's currently
-// there, at its own independent rate.
+// index_camera.html JPEG-encodes each frame (main thread, from a
+// <video>/getUserMedia frame or the synthetic fallback pattern) and
+// writes the compressed bytes here; the worker-side timer callback below
+// just publishes whatever's currently there, at its own independent
+// rate. camera_set_frame_length() reports how many of the MAX_JPEG_BYTES
+// in this buffer are actually valid for the current frame.
 EMSCRIPTEN_KEEPALIVE
 uint8_t * camera_get_frame_buffer_ptr(void)
 {
   return msg.data.data;
 }
 
+EMSCRIPTEN_KEEPALIVE
+void camera_set_frame_length(size_t len)
+{
+  msg.data.size = len < MAX_JPEG_BYTES ? len : MAX_JPEG_BYTES;
+}
+
 void timer_callback(rcl_timer_t * timer, int64_t last_call_time, uintptr_t next_call_time)
 {
   (void) next_call_time;
   (void) last_call_time;
-  if (timer == NULL) {
+  if (timer == NULL || msg.data.size == 0) {
+    // No real frame from JS yet (camera_set_frame_length() hasn't run) --
+    // skip rather than publish an empty CompressedImage.
     return;
   }
   RCCHECK(rcl_publish(&publisher, &msg, NULL));
@@ -112,35 +134,33 @@ int main(int argc, char const * const * argv)
 
   RCCHECK(rclc_publisher_init_default(
     &publisher, &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Image),
+    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, CompressedImage),
     "camera/image"));
 
-  // 2 Hz: plenty to see it's live, without flooding a websocket with
-  // uncompressed frames.
+  // 10 Hz -- an order of magnitude faster than the old raw-Image version
+  // could afford, since a JPEG frame this size is a couple of KB instead
+  // of 57.6 KB.
   rcl_timer_t timer = rcl_get_zero_initialized_timer();
   RCCHECK(rclc_timer_init_default(
-    &timer, &support, RCL_MS_TO_NS(500), timer_callback));
+    &timer, &support, RCL_MS_TO_NS(100), timer_callback));
 
   rclc_executor_t executor;
   RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
   RCCHECK(rclc_executor_add_timer(&executor, &timer));
 
-  sensor_msgs__msg__Image__init(&msg);
+  sensor_msgs__msg__CompressedImage__init(&msg);
   rosidl_runtime_c__String__assign(&msg.header.frame_id, "camera");
-  rosidl_runtime_c__String__assign(&msg.encoding, "rgb8");
-  msg.height = IMG_HEIGHT;
-  msg.width = IMG_WIDTH;
-  msg.step = IMG_WIDTH * IMG_CHANNELS;
-  msg.is_bigendian = 0;
-  if (!rosidl_runtime_c__uint8__Sequence__init(&msg.data, (size_t)IMG_WIDTH * IMG_HEIGHT * IMG_CHANNELS)) {
+  rosidl_runtime_c__String__assign(&msg.format, "jpeg");
+  if (!rosidl_runtime_c__uint8__Sequence__init(&msg.data, MAX_JPEG_BYTES)) {
     printf("Failed to allocate image buffer\n");
     return 1;
   }
-  // Filled in only once JS starts writing frames -- publish a visibly
-  // "not a real frame yet" mid-gray until then, not stale zeroed memory.
-  memset(msg.data.data, 128, msg.data.size);
+  // Filled in only once JS starts writing frames -- camera_set_frame_length()
+  // starts at 0 (an empty CompressedImage), so nothing publishes until the
+  // first real JPEG frame is ready, rather than a bogus all-zero "frame".
+  msg.data.size = 0;
 
-  printf("wasm32 rclc camera demo starting, publishing %dx%d Image on 'camera/image' via rmw_zenoh_pico\n",
+  printf("wasm32 rclc camera demo starting, publishing %dx%d JPEG CompressedImage on 'camera/image' via rmw_zenoh_pico\n",
     IMG_WIDTH, IMG_HEIGHT);
 
   while (true) {

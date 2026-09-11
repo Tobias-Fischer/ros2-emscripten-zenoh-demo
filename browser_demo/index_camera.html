@@ -25,7 +25,7 @@
     <button type="button" data-router-apply>Apply &amp; reload</button>
   </div>
   <h1>Camera demo</h1>
-  <p class="lede">Publishes webcam frames as <code>sensor_msgs/Image</code> on <code>camera/image</code> (160×120, rgb8). Falls back to a synthetic animated test pattern if no camera is available or permission is denied.</p>
+  <p class="lede">Publishes webcam frames as JPEG-compressed <code>sensor_msgs/CompressedImage</code> on <code>camera/image</code> (160×120). Falls back to a synthetic animated test pattern if no camera is available or permission is denied.</p>
   <div class="panel">
     <canvas id="preview" width="160" height="120" style="width:100%; max-width:480px;"></canvas>
   </div>
@@ -89,9 +89,14 @@
 
   // Same shared-memory pattern as index_teleop.html / index_gps.html:
   // main() runs on a pthread Web Worker with no DOM/getUserMedia access,
-  // so all the frame capture lives here on the page's real main thread,
-  // writing raw RGB8 pixels directly into wasm linear memory at the
-  // address camera_get_frame_buffer_ptr() exports. See camera_rclc.c.
+  // so all the frame capture -- and, now, the JPEG encoding itself, via
+  // canvas.toBlob('image/jpeg') -- lives here on the page's real main
+  // thread, writing the compressed bytes directly into wasm linear memory
+  // at the address camera_get_frame_buffer_ptr() exports. See
+  // camera_rclc.c: canvas.toBlob() is a browser-native (typically
+  // hardware-assisted) encoder, so this is a lot cheaper than it sounds --
+  // a raw RGBA->RGB8 copy of the same frame was actually *more* JS work
+  // than this, for a fraction of the network bandwidth.
   //
   // Unlike teleop/gps's state structs (statically allocated -- their
   // address is valid the instant the wasm module is instantiated), the
@@ -126,6 +131,7 @@
     Module.callMain([]);
 
     const framePtr = await pollForFrameBufferPtr();
+    const setFrameLength = (n) => Module.ccall('camera_set_frame_length', null, ['number'], [n]);
 
     const canvas = document.getElementById('preview');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -136,24 +142,10 @@
 
     let usingCamera = false;
 
-    function writeFrameFromCanvas() {
-      const imageData = ctx.getImageData(0, 0, WIDTH, HEIGHT).data; // RGBA
-      // RGBA -> RGB8, straight into wasm memory. WIDTH*HEIGHT*4 source
-      // bytes in, WIDTH*HEIGHT*3 destination bytes out -- small enough
-      // (19200 pixels) that a plain per-pixel loop is fine at 2 Hz.
-      let dst = framePtr;
-      for (let i = 0; i < imageData.length; i += 4) {
-        Module.HEAPU8[dst] = imageData[i];
-        Module.HEAPU8[dst + 1] = imageData[i + 1];
-        Module.HEAPU8[dst + 2] = imageData[i + 2];
-        dst += 3;
-      }
-    }
-
     let patternT = 0;
     function drawSyntheticPattern() {
       // A moving diagonal gradient plus a bouncing block -- enough
-      // motion to see it's live, cheap enough to redraw every tick.
+      // motion to see it's live, cheap enough to redraw every frame.
       const grad = ctx.createLinearGradient(0, 0, WIDTH, HEIGHT);
       const hue = (patternT * 4) % 360;
       grad.addColorStop(0, `hsl(${hue}, 70%, 50%)`);
@@ -170,19 +162,48 @@
       patternT++;
     }
 
-    function tick() {
+    // Drawing the preview (video frame or synthetic pattern) is decoupled
+    // from JPEG-encoding/publishing it: at a fixed 500 ms tick, both used
+    // to happen together, which made the on-screen preview itself choppy
+    // (2 fps) even though nothing about rendering a canvas needs to be
+    // that slow -- only the network side (bandwidth, C-side publish rate)
+    // did. requestAnimationFrame keeps the preview smooth regardless of
+    // how often a frame actually gets encoded and published below.
+    function drawFrame() {
       if (usingCamera) {
         ctx.drawImage(video, 0, 0, WIDTH, HEIGHT);
       } else {
         drawSyntheticPattern();
       }
-      writeFrameFromCanvas();
+      requestAnimationFrame(drawFrame);
     }
+    requestAnimationFrame(drawFrame);
 
-    // Runs independently of the C-side publish timer (2 Hz) -- this just
-    // keeps the buffer fresh; whatever's there when the worker's timer
-    // fires next is what gets published.
-    setInterval(tick, 500);
+    // JPEG-encode whatever's currently on the canvas and hand the bytes to
+    // wasm -- independent of both the preview's rAF loop above and the
+    // C-side publish timer (10 Hz); this just keeps the buffer fresh with
+    // whatever the most recent encode produced. toBlob() is async (and,
+    // being a real encoder, not instant), so encodeTick guards against
+    // starting a new encode before the previous one's callback has run.
+    let encoding = false;
+    function encodeTick() {
+      if (encoding) return;
+      encoding = true;
+      canvas.toBlob((blob) => {
+        if (!blob) { encoding = false; return; }
+        blob.arrayBuffer().then((buf) => {
+          // Must match MAX_JPEG_BYTES in camera_rclc.c -- writing more
+          // than this into wasm memory at framePtr would corrupt whatever
+          // comes after that buffer, not just produce a truncated frame.
+          const MAX_JPEG_BYTES = 32768;
+          const len = Math.min(buf.byteLength, MAX_JPEG_BYTES);
+          Module.HEAPU8.set(new Uint8Array(buf, 0, len), framePtr);
+          setFrameLength(len);
+          encoding = false;
+        });
+      }, 'image/jpeg', 0.7);
+    }
+    setInterval(encodeTick, 100);
 
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       navigator.mediaDevices.getUserMedia({ video: { width: WIDTH, height: HEIGHT }, audio: false })
