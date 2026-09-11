@@ -79,10 +79,34 @@
       <a href="https://pixi.sh/" target="_blank" rel="noopener">pixi</a>'s <code>exec</code>
       installs it into a throwaway environment and runs it in one line, no ROS
       or project directory needed (just <a href="https://pixi.sh/latest/#installation" target="_blank" rel="noopener">pixi itself</a>):</p>
-      <pre>pixi exec --with zenohd -c conda-forge \
-  zenohd -l ws/127.0.0.1:7447 --no-multicast-scouting</pre>
+      <pre>pixi exec --with zenohd -c conda-forge zenohd -l ws/127.0.0.1:7447 --no-multicast-scouting</pre>
       <p style="margin:10px 0 0;">Once it's up, just click "Run demo" below — no page reload
       needed.</p>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; color:var(--text-dim);">Testing from a phone instead? The GPS/tilt demos need a router your phone can actually reach</summary>
+        <p style="margin:10px 0 0;">Your phone's <code>127.0.0.1</code> is the phone itself, not your
+        desktop — so it needs your desktop's real address. And since this page is served over
+        <code>https://</code>, browsers block a plain <code>ws://</code> connection to anything but
+        <code>127.0.0.1</code>/<code>localhost</code> (mixed content), so it needs TLS too.
+        <a href="https://caddyserver.com/" target="_blank" rel="noopener">Caddy</a> (also on
+        conda-forge) terminates that in one more line, with a self-signed cert it generates on the
+        fly — no cert files to manage. Run the router (same command as above, just on a different
+        port so Caddy can sit in front of it):</p>
+        <pre style="margin-top:10px;">pixi exec --with zenohd -c conda-forge zenohd -l ws/127.0.0.1:17447 --no-multicast-scouting</pre>
+        <p style="margin:10px 0 0;">Then, in a second terminal:</p>
+        <pre style="margin-top:8px;">pixi exec --with caddy --with python -c conda-forge bash -c 'printf "{\n\tskip_install_trust\n}\nhttps://%s:7443 {\n\treverse_proxy :17447\n}\n" "$(python -c "import socket;s=socket.socket(socket.AF_INET,socket.SOCK_DGRAM);s.connect((\"8.8.8.8\",80));print(s.getsockname()[0])")" | caddy run --config - --adapter caddyfile'</pre>
+        <p style="margin:10px 0 0;">The inner <code>python</code> call just asks the OS which
+        network interface it would route through — same trick works on macOS, Linux and Windows, no
+        guessing interface names. <code>skip_install_trust</code> stops Caddy from prompting for your
+        password to install its cert into your desktop's own trust store — unnecessary here, since
+        it's your phone that needs to trust it, not the desktop. Caddy logs the exact address it's
+        proxying from (something like <code>192.168.1.50:7443</code>) — that's what goes in the
+        "zenoh router" field on the demo page, with the "wss (TLS)" box checked.</p>
+        <p style="margin:10px 0 0;">One manual step, unavoidable for a self-signed cert: open
+        <code>https://&lt;that address&gt;/</code> directly on the phone once first and accept the
+        browser's "not private" warning — after that, the demo page's <code>wss://</code> connection
+        to the same address will work.</p>
+      </details>
     </div>
 
     <div class="demo-card" data-demo="rclc">
@@ -163,7 +187,7 @@
     <ul class="limits-list">
       <li><code>rmw_zenoh_pico</code> doesn't support publisher/subscriber QoS event callbacks yet — the demo nodes disable them explicitly rather than hitting an unhandled error.</li>
       <li>Its <code>TypeDescriptionService</code> isn't implemented either (would hang, not error) — disabled in the same way; parameter and rosout services are switched off at node construction for the same reason.</li>
-      <li>The rclc-based demos' zenoh connect address is runtime-configurable now (a "zenoh router" field on each page, or <code>?zenoh_host=&amp;zenoh_port=</code> in the URL) via <code>rmw_zenoh_pico_set_unicast()</code> — but the rclpy talker above still only connects to the compiled-in default (<code>127.0.0.1:7447</code>).</li>
+      <li>The rclc-based demos' zenoh connect address is runtime-configurable now (a "zenoh router" field on each page, or <code>?zenoh_host=&amp;zenoh_port=&amp;zenoh_tls=1</code> in the URL) via <code>rmw_zenoh_pico_set_unicast()</code>, with a <code>wss://</code> option for reaching a router on a different device (see the setup box's phone section) — but the rclpy talker above still only connects to the compiled-in default (<code>127.0.0.1:7447</code>).</li>
     </ul>
   </section>
 

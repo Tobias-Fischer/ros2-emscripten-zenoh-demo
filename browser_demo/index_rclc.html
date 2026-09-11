@@ -22,6 +22,7 @@
     <input type="text" data-field="host" placeholder="127.0.0.1">
     <span>:</span>
     <input type="text" data-field="port" placeholder="7447">
+    <label><input type="checkbox" data-field="tls"> wss (TLS)</label>
     <button type="button" data-router-apply>Apply &amp; reload</button>
   </div>
   <h1>rclc talker</h1>
@@ -75,16 +76,28 @@
   const zenohParams = new URLSearchParams(location.search);
   const zenohHost = zenohParams.get('zenoh_host') || '';
   const zenohPort = zenohParams.get('zenoh_port') || '';
+  const zenohTls = zenohParams.get('zenoh_tls') === '1';
   document.querySelector('.router-config [data-field="host"]').value = zenohHost;
   document.querySelector('.router-config [data-field="port"]').value = zenohPort;
+  document.querySelector('.router-config [data-field="tls"]').checked = zenohTls;
   document.querySelector('.router-config [data-router-apply]').addEventListener('click', () => {
     const host = document.querySelector('.router-config [data-field="host"]').value.trim();
     const port = document.querySelector('.router-config [data-field="port"]').value.trim();
+    const tls = document.querySelector('.router-config [data-field="tls"]').checked;
     const params = new URLSearchParams();
     if (host) params.set('zenoh_host', host);
     if (port) params.set('zenoh_port', port);
+    if (tls) params.set('zenoh_tls', '1');
     location.search = params.toString();
   });
+  // A custom (non-default) host almost always means "someone else's device" --
+  // mixed-content policy blocks a plain ws:// connection from this https:// page
+  // to anything but 127.0.0.1/localhost anyway, so route it through the same
+  // Module.websocket.url override emscripten's socket shim already supports
+  // (SOCKFS.websocketArgs.url) rather than leaving it to silently fail. See the
+  // main page's setup box for the Caddy one-liner that terminates TLS in front
+  // of a plain zenohd.
+  Module.websocket.url = zenohTls ? 'wss://' : 'ws://';
 
   Module.onRuntimeInitialized = () => {
     if (zenohHost) {
