@@ -192,6 +192,17 @@ jobs:
           cp demo.ipynb content/
           pixi run build
 
+      # JupyterLite's own pages never load coi-serviceworker.js -- only
+      # site/index.html does -- so a visitor opening a JupyterLite link
+      # directly (our own "Open the notebook" button included) gets no
+      # cross-origin isolation on GitHub Pages, and xeus-python's pthreads
+      # runtime hangs without SharedArrayBuffer instead of erroring. See
+      # the script for the full explanation.
+      - name: Cross-origin isolation for JupyterLite pages
+        run: |
+          python3 demo-repo/.github/scripts/inject_coi_serviceworker.py \
+            demo-repo/jupyterlite-content/_output demo-repo/site/coi-serviceworker.js
+
       # ---- assemble and deploy --------------------------------------------
       - name: Assemble Pages payload
         run: |
