@@ -41,5 +41,12 @@ pixi install
 patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
   < "$HERE/../patches/rclpy-node-rmw_zenoh_pico-workarounds.patch"
 
+# pyjs's pyodide.ffi.to_js() polyfill doesn't accept dict_converter (or
+# other) real-Pyodide kwargs -- breaks pyodide_http on import, which
+# xeus_python_shell imports unconditionally on every JupyterLite kernel
+# start. Upstream bug, still open: see ../patches/README.md.
+patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
+  < "$HERE/../patches/pyjs-pyodide-polyfill-to_js-compat.patch"
+
 ln -sfn "$HERE/.pixi/envs/default" "$HERE/../demo_env"
 echo "demo_env/ ready -> $HERE/.pixi/envs/default"

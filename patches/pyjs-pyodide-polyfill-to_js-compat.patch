@@ -1,0 +1,27 @@
+--- a/pyjs/pyodide_polyfill.py	2026-09-11 16:56:51
++++ b/pyjs/pyodide_polyfill.py	2026-09-11 16:56:56
+@@ -1,9 +1,23 @@
+ from typing import Any
+-from .convert_py_to_js import to_js
++from .convert_py_to_js import to_js as _pyjs_to_js
+ from .error_handling import JsException
+ import sys
+ import types
+ 
++# Real Pyodide's pyodide.ffi.to_js() accepts dict_converter (and other)
++# keyword arguments this polyfill's to_js() doesn't -- breaks any package
++# written against the real API on import (pyodide_http, urllib3, ...) with
++# TypeError: to_js() got an unexpected keyword argument 'dict_converter'.
++# Known, still-open upstream bug: https://github.com/emscripten-forge/pyjs/issues/73
++def to_js(value, cache=None, depth=0, max_depth=None, dict_converter=None, **_unsupported):
++    result = _pyjs_to_js(value, cache=cache, depth=depth, max_depth=max_depth)
++    if dict_converter is not None and isinstance(value, dict):
++        # Real pyodide.ffi.to_js applies dict_converter to the raw JS Map
++        # it would otherwise return for a dict -- pyjs's LiteralMap is
++        # iterable the same way, so this works the same.
++        return dict_converter(result)
++    return result
++
+ def install_pyodide_polyfill():
+     # Expose a small pyodide polyfill
+     def _pyodide__getattr__(name: str) -> Any:
