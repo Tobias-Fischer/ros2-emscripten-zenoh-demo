@@ -17,6 +17,13 @@
     <a href="index_camera.html">camera</a>
     <a href="robot_view.html" class="current">virtual robot</a>
   </nav>
+  <div class="router-config">
+    <label>zenoh router:</label>
+    <input type="text" data-field="host" placeholder="127.0.0.1">
+    <span>:</span>
+    <input type="text" data-field="port" placeholder="7447">
+    <button type="button" data-router-apply>Apply &amp; reload</button>
+  </div>
   <h1>Virtual robot</h1>
   <p class="lede">Subscribes to <code>geometry_msgs/Twist</code> on <code>cmd_vel</code> and dead-reckons a pose from it — drive it from <a href="index_teleop.html">keyboard teleop</a> or <a href="index_imu.html">phone tilt</a>, open in another tab or device.</p>
   <div class="panel">
@@ -56,6 +63,26 @@
     // See index_rclc.html for why this is needed.
     websocket: { subprotocol: null },
   };
+
+  // Runtime-configurable zenoh connect address: rmw_zenoh_pico's compiled-in
+  // default (127.0.0.1:7447) is a *default*, overridden here via
+  // rmw_zenoh_pico_set_unicast() (see robot_view.c) before main() opens the
+  // session -- main() is linked with -sINVOKE_RUN=0 specifically so this can
+  // run first. ?zenoh_host=/&zenoh_port= in the URL (or the fields above)
+  // set it; leave both blank to use the compiled-in default.
+  const zenohParams = new URLSearchParams(location.search);
+  const zenohHost = zenohParams.get('zenoh_host') || '';
+  const zenohPort = zenohParams.get('zenoh_port') || '';
+  document.querySelector('.router-config [data-field="host"]').value = zenohHost;
+  document.querySelector('.router-config [data-field="port"]').value = zenohPort;
+  document.querySelector('.router-config [data-router-apply]').addEventListener('click', () => {
+    const host = document.querySelector('.router-config [data-field="host"]').value.trim();
+    const port = document.querySelector('.router-config [data-field="port"]').value.trim();
+    const params = new URLSearchParams();
+    if (host) params.set('zenoh_host', host);
+    if (port) params.set('zenoh_port', port);
+    location.search = params.toString();
+  });
 
   const canvas = document.getElementById('view');
   const ctx = canvas.getContext('2d');
@@ -98,6 +125,14 @@
   }
 
   Module.onRuntimeInitialized = () => {
+    if (zenohHost) {
+      Module.stringToUTF8(zenohHost, Module.ccall('zenoh_get_connect_host_buf', 'number', [], []), 64);
+    }
+    if (zenohPort) {
+      Module.stringToUTF8(zenohPort, Module.ccall('zenoh_get_connect_port_buf', 'number', [], []), 8);
+    }
+    Module.callMain([]);
+
     const posePtr = Module.ccall('robot_view_get_pose_ptr', 'number', [], []);
     const xIndex = posePtr >> 3;
     const yIndex = xIndex + 1;

@@ -174,7 +174,7 @@ unzip *.zip -d zenoh_router &amp;&amp; cd zenoh_router
     <ul class="limits-list">
       <li><code>rmw_zenoh_pico</code> doesn't support publisher/subscriber QoS event callbacks yet — the demo nodes disable them explicitly rather than hitting an unhandled error.</li>
       <li>Its <code>TypeDescriptionService</code> isn't implemented either (would hang, not error) — disabled in the same way; parameter and rosout services are switched off at node construction for the same reason.</li>
-      <li>The wasm32 build's zenoh connect address/port is compiled in (<code>127.0.0.1:7447</code>) rather than runtime-configurable — see the setup box above.</li>
+      <li>The rclc-based demos' zenoh connect address is runtime-configurable now (a "zenoh router" field on each page, or <code>?zenoh_host=&amp;zenoh_port=</code> in the URL) via <code>rmw_zenoh_pico_set_unicast()</code> — but the rclpy talker above still only connects to the compiled-in default (<code>127.0.0.1:7447</code>).</li>
     </ul>
   </section>
 

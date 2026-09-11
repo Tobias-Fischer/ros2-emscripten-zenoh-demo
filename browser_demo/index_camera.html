@@ -17,6 +17,13 @@
     <a href="index_camera.html" class="current">camera</a>
     <a href="robot_view.html">virtual robot</a>
   </nav>
+  <div class="router-config">
+    <label>zenoh router:</label>
+    <input type="text" data-field="host" placeholder="127.0.0.1">
+    <span>:</span>
+    <input type="text" data-field="port" placeholder="7447">
+    <button type="button" data-router-apply>Apply &amp; reload</button>
+  </div>
   <h1>Camera demo</h1>
   <p class="lede">Publishes webcam frames as <code>sensor_msgs/Image</code> on <code>camera/image</code> (160×120, rgb8). Falls back to a synthetic animated test pattern if no camera is available or permission is denied.</p>
   <div class="panel">
@@ -57,6 +64,26 @@
     websocket: { subprotocol: null },
   };
 
+  // Runtime-configurable zenoh connect address: rmw_zenoh_pico's compiled-in
+  // default (127.0.0.1:7447) is a *default*, overridden here via
+  // rmw_zenoh_pico_set_unicast() (see camera_rclc.c) before main() opens the
+  // session -- main() is linked with -sINVOKE_RUN=0 specifically so this can
+  // run first. ?zenoh_host=/&zenoh_port= in the URL (or the fields above)
+  // set it; leave both blank to use the compiled-in default.
+  const zenohParams = new URLSearchParams(location.search);
+  const zenohHost = zenohParams.get('zenoh_host') || '';
+  const zenohPort = zenohParams.get('zenoh_port') || '';
+  document.querySelector('.router-config [data-field="host"]').value = zenohHost;
+  document.querySelector('.router-config [data-field="port"]').value = zenohPort;
+  document.querySelector('.router-config [data-router-apply]').addEventListener('click', () => {
+    const host = document.querySelector('.router-config [data-field="host"]').value.trim();
+    const port = document.querySelector('.router-config [data-field="port"]').value.trim();
+    const params = new URLSearchParams();
+    if (host) params.set('zenoh_host', host);
+    if (port) params.set('zenoh_port', port);
+    location.search = params.toString();
+  });
+
   const WIDTH = 160;
   const HEIGHT = 120;
 
@@ -90,6 +117,14 @@
   }
 
   Module.onRuntimeInitialized = async () => {
+    if (zenohHost) {
+      Module.stringToUTF8(zenohHost, Module.ccall('zenoh_get_connect_host_buf', 'number', [], []), 64);
+    }
+    if (zenohPort) {
+      Module.stringToUTF8(zenohPort, Module.ccall('zenoh_get_connect_port_buf', 'number', [], []), 8);
+    }
+    Module.callMain([]);
+
     const framePtr = await pollForFrameBufferPtr();
 
     const canvas = document.getElementById('preview');

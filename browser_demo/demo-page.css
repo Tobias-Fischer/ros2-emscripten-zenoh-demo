@@ -139,3 +139,39 @@ footer {
   color: var(--text-dim);
   font-size: 13px;
 }
+
+.router-config {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 18px;
+  padding: 10px 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.router-config input {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  padding: 5px 8px;
+}
+.router-config input[data-field="host"] { width: 11em; }
+.router-config input[data-field="port"] { width: 5em; }
+.router-config button {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 12.5px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.router-config button:hover { border-color: var(--accent-dim); }

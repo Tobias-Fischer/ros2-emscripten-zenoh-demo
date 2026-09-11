@@ -53,7 +53,8 @@ em++ \
   -s ASSERTIONS=1 \
   -fexceptions \
   -sWASM_BIGINT \
-  -sEXPORTED_RUNTIME_METHODS=ccall,HEAPU8 \
+  -sINVOKE_RUN=0 \
+  -sEXPORTED_RUNTIME_METHODS=ccall,HEAPU8,stringToUTF8,callMain \
   -lwebsocket.js \
   -sSOCKET_DEBUG=1 \
   -s PTHREAD_POOL_SIZE=4 \

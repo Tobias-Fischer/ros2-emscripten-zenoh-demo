@@ -1,11 +1,38 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <emscripten.h>
+
 #include <rcl/rcl.h>
 #include <rclc/rclc.h>
 #include <rclc/executor.h>
+// Not <rmw_zenoh_pico/rmw_zenoh_pico.h> -- its own transitive includes pull
+// in rosidl_typesupport_microxrcedds_c's <ucdr/microcdr.h>, which isn't on
+// this demo's (deliberately minimal) include path. config.h + options.h is
+// all rmw_zenoh_pico_set_unicast()'s declaration actually needs: config.h
+// defines RMW_ZENOH_PICO_TRANSPORT_UNICAST, which options.h's declaration
+// is guarded on.
+#include <rmw_zenoh_pico/config.h>
+#include <rmw_zenoh_pico/rmw_zenoh_pico_options.h>
 #include <std_msgs/msg/string.h>
 #include <rosidl_runtime_c/string_functions.h>
+
+// The zenoh connect address rmw_zenoh_pico compiles in (127.0.0.1:7447) is
+// only a *default* -- rmw_zenoh_pico_set_unicast() overrides it at runtime,
+// but has to run before rclc_support_init() opens the session. main() is
+// linked with -sINVOKE_RUN=0 so JS can write into this buffer (still empty
+// means "use the compiled-in default") before calling Module.callMain()
+// itself -- see index_rclc.html.
+#define ZENOH_HOST_MAX 64
+#define ZENOH_PORT_MAX 8
+static char zenoh_connect_host[ZENOH_HOST_MAX] = "";
+static char zenoh_connect_port[ZENOH_PORT_MAX] = "";
+
+EMSCRIPTEN_KEEPALIVE
+char * zenoh_get_connect_host_buf(void) { return zenoh_connect_host; }
+
+EMSCRIPTEN_KEEPALIVE
+char * zenoh_get_connect_port_buf(void) { return zenoh_connect_port; }
 
 // RCL_RET_PUBLISHER_INVALID (300) is what every rcl_publish() call
 // returns, over and over, whenever the wasm32 build can't reach a zenoh
@@ -14,7 +41,9 @@
 // spell out what it actually means instead of just the raw code.
 #define RCCHECK(fn) { rcl_ret_t rc = fn; if (rc != RCL_RET_OK) { \
   if (rc == RCL_RET_PUBLISHER_INVALID) { \
-    printf("Line %d: publisher invalid (rc=%d) -- usually means no zenoh router is reachable yet at ws://127.0.0.1:7447; start one (see the site's setup box).\n", __LINE__, (int)rc); \
+    printf("Line %d: publisher invalid (rc=%d) -- usually means no zenoh router is reachable yet at ws://%s:%s; start one (see the site's setup box).\n", __LINE__, (int)rc, \
+      zenoh_connect_host[0] != '\0' ? zenoh_connect_host : "127.0.0.1", \
+      zenoh_connect_port[0] != '\0' ? zenoh_connect_port : "7447"); \
   } else { \
     printf("Failed status on line %d: %d\n", __LINE__, (int)rc); \
   } } }
@@ -39,6 +68,13 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time, uintptr_t next_
 
 int main(int argc, char const * const * argv)
 {
+  if (zenoh_connect_host[0] != '\0') {
+    rmw_zenoh_pico_set_unicast(
+      zenoh_connect_host,
+      zenoh_connect_port[0] != '\0' ? zenoh_connect_port : NULL,
+      NULL, NULL);
+  }
+
   rcl_allocator_t allocator = rcl_get_default_allocator();
   rclc_support_t support;
   RCCHECK(rclc_support_init(&support, argc, argv, &allocator));
