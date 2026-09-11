@@ -1,6 +1,18 @@
 #!/usr/bin/env bash
 # Run via `pixi run build-rclpy` (from this directory) so `em++` is on PATH —
 # see pixi.toml. Needs demo_env/ assembled first (see ../docs/demo_env.md).
+#
+# KNOWN ISSUE (not yet resolved): this links and runs -- no more wasm-ld
+# crash, no more main-module "undefined symbol" aborts -- but `import
+# rclpy` still fails with a generic "unknown dlopen() error" dlopen()ing
+# rclpy's own `_rclpy_pybind11.*.so` specifically (the largest, most
+# symbol-heavy of the ~190 side modules this pulls in). CPython's dlopen
+# wrapper doesn't propagate whatever the underlying JS-level reason is.
+# Every other .so in the dependency graph (librcl.so, librmw.so, the
+# microxrcedds typesupport chain, etc.) dlopens fine first. Next step:
+# get the raw underlying error out of emscripten's dlopen (e.g. a
+# from-C dlopen()+dlerror() probe, bypassing CPython's wrapper) rather
+# than continuing to guess at EXPORTED_FUNCTIONS entries one at a time.
 set -eo pipefail
 
 DEMO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,65 +32,26 @@ mkdir -p "$DEMO_DIR/out"
 # the exception-handling part (matching the toolchain's own base flags).
 export EMCC_CFLAGS="-O2 -g0 -fPIC -msimd128"
 
-# See build_rclc.sh's comment above its own LIBS array for how a list like
-# this gets found (empirically, not from a manifest) and what it actually
-# means for -sMAIN_MODULE=2. The extra entries here under $SP are the same
-# idea applied to rclpy's own Python extension modules -- found the same
-# way, but via Python ImportError/dlopen failures rather than wasm-ld's
-# link-time errors.
-LIBS=(
-  "$PREFIX/lib/librclc.so"
-  "$PREFIX/lib/librcl.so"
-  "$PREFIX/lib/librcl_action.so"
-  "$PREFIX/lib/librcl_lifecycle.so"
-  "$PREFIX/lib/librcl_yaml_param_parser.so"
-  "$PREFIX/lib/librcl_logging_interface.so"
-  "$PREFIX/lib/librmw.so"
-  "$PREFIX/lib/librmw_zenoh_pico.so"
-  "$PREFIX/lib/libzenohpico.so"
-  "$PREFIX/lib/librosidl_runtime_c.so"
-  "$PREFIX/lib/librcpputils.so"
-  "$PREFIX/lib/librcutils.so"
-  "$PREFIX/lib/liblibstatistics_collector.so"
-  "$PREFIX/lib/libstd_msgs__rosidl_generator_c.so"
-  "$PREFIX/lib/libstd_msgs__rosidl_typesupport_c.so"
-  "$PREFIX/lib/libstd_msgs__rosidl_typesupport_introspection_c.so"
-  "$PREFIX/lib/libstd_msgs__rosidl_typesupport_microxrcedds_c.so"
-  "$PREFIX/lib/libbuiltin_interfaces__rosidl_generator_c.so"
-  "$PREFIX/lib/libbuiltin_interfaces__rosidl_typesupport_c.so"
-  "$PREFIX/lib/libbuiltin_interfaces__rosidl_typesupport_introspection_c.so"
-  "$PREFIX/lib/libbuiltin_interfaces__rosidl_typesupport_microxrcedds_c.so"
-  "$PREFIX/lib/librcl_interfaces__rosidl_generator_c.so"
-  "$PREFIX/lib/librcl_interfaces__rosidl_typesupport_c.so"
-  "$PREFIX/lib/librcl_interfaces__rosidl_typesupport_microxrcedds_c.so"
-  "$PREFIX/lib/librcl_interfaces__rosidl_typesupport_introspection_c.so"
-  "$PREFIX/lib/liblifecycle_msgs__rosidl_generator_c.so"
-  "$PREFIX/lib/liblifecycle_msgs__rosidl_typesupport_c.so"
-  "$PREFIX/lib/libtype_description_interfaces__rosidl_typesupport_microxrcedds_c.so"
-  "$PREFIX/lib/libtype_description_interfaces__rosidl_typesupport_c.so"
-  "$PREFIX/lib/libservice_msgs__rosidl_typesupport_microxrcedds_c.so"
-  "$PREFIX/lib/libservice_msgs__rosidl_typesupport_c.so"
-  "$PREFIX/microcdr-2.0.2/lib/libmicrocdr.so"
-  "$SP/rclpy/_rclpy_pybind11.cpython-313-wasm32-emscripten.so"
-  "$SP/rcl_interfaces/rcl_interfaces_s__rosidl_typesupport_c.so"
-  "$SP/builtin_interfaces/builtin_interfaces_s__rosidl_typesupport_c.so"
-  "$SP/std_msgs/std_msgs_s__rosidl_typesupport_c.so"
-  "$SP/type_description_interfaces/type_description_interfaces_s__rosidl_typesupport_c.so"
-  "$SP/service_msgs/service_msgs_s__rosidl_typesupport_c.so"
-  "$SP/numpy/_core/_multiarray_umath.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/linalg/_umath_linalg.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/linalg/lapack_lite.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/fft/_pocketfft_umath.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/_common.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/_bounded_integers.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/bit_generator.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/mtrand.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/_philox.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/_sfc64.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/_generator.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/_pcg64.cpython-313-wasm32-emscripten.so"
-  "$SP/numpy/random/_mt19937.cpython-313-wasm32-emscripten.so"
-)
+# This MAIN_MODULE's own compiled code (rclpy_boot.c) barely touches libc
+# directly, so without this, symbols the *dlopen'd side modules* need at
+# runtime (stdout/stderr/etc, libc++ exception machinery, and anything
+# else no root reference here pulls in) never get compiled into the main
+# module or exported for them -- "Assertion failed: undefined symbol
+# 'stderr'. perhaps a side module was not linked in?", confirmed live.
+# Scoped to just libc/libc++/libc++abi (not "1" for literally everything):
+# EMCC_FORCE_STDLIBS=1 also drags in libwebgpu's stub bindings, which
+# then need their own JS-side WebGPU imports wired in for no benefit here.
+export EMCC_FORCE_STDLIBS=libc,libc++,libc++abi
+
+# Unlike build_rclc.sh's LIBS array, rclpy's own extension modules and
+# every ROS .so it transitively needs are NOT linked directly into this
+# executable -- Python's normal `import` dlopen()s them from site-packages
+# at runtime instead (see rclpy_boot.c's own comment for why; briefly,
+# directly linking this many .so's worth of relocations, together with a
+# statically-linked libpython3.13.a and Asyncify, crashed wasm-ld
+# outright). They still need to physically exist next to the deployed
+# .js/.wasm output for the browser to fetch, which the `cp`/`find` block
+# at the bottom of this script handles regardless of link-time linkage.
 
 INCLUDE_FLAGS=(-I"$PREFIX/include")
 for d in "$PREFIX"/include/*/; do
@@ -91,6 +64,28 @@ done
 # same site-packages and pushed the required initial memory past the old
 # 64 MB ("wasm-ld: error: initial memory too small, ~80.7 MB needed"); 128 MB
 # below leaves real headroom rather than just clearing today's number.
+#
+# EXPORTED_FUNCTIONS below: dlopen'd side modules (every ROS .so, numpy,
+# rclpy's own pybind11 module) reference assorted libc/libc++ symbols
+# (stdio globals, program_invocation_name, and libc++'s exception-
+# handling/RTTI machinery -- pybind11 translates any C++ exception a
+# wrapped call throws into a Python one, so the *type information* for
+# every std:: exception type it might see has to be resolvable across
+# the dylink boundary, not just each exception class's own code) that
+# EMCC_FORCE_STDLIBS above links the defining objects for but doesn't by
+# itself export -- MAIN_MODULE's dead-code elimination still drops
+# anything nothing in this module's own root code touches. Found one at
+# a time (each only surfacing once the previous one was fixed): plain
+# "undefined symbol" assertion failures for the plain libc ones, then
+# (once those were exhausted) a "bad export type ... can potentially be
+# ignored" warning for every libc++ RTTI symbol -- which is actually
+# wrong for the specific ones something ends up calling; the warning's
+# optimism doesn't hold once _rclpy_pybind11.so is actually dlopen'd and
+# throws through one of these types. A blanket -Wl,--export-all instead
+# pulls in unrelated stub object files (EMCC_FORCE_STDLIBS=1 links in
+# literally everything, WebGPU bindings included) needing their own
+# JS-side imports -- scoping EMCC_FORCE_STDLIBS to libc/libc++/libc++abi
+# above avoids that without giving up on an explicit list here.
 em++ \
   -std=c11 -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
@@ -105,15 +100,13 @@ em++ \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s STACK_SIZE=5MB \
   -s INITIAL_MEMORY=134217728 -s MAXIMUM_MEMORY=1024MB \
+  -s EXPORTED_FUNCTIONS=_main,_stdin,_stdout,_stderr,_program_invocation_name,_program_invocation_short_name,__ZNSt13runtime_errorD1Ev,__ZTISt13runtime_error,__ZTVN10__cxxabiv120__si_class_type_infoE,__ZTISt9exception,__ZNSt12length_errorD1Ev,__ZTISt12length_error,__ZTVSt12length_error,__ZNSt16invalid_argumentD1Ev,__ZTISt16invalid_argument,__ZTVSt16invalid_argument,__ZTVNSt3__218basic_stringstreamIcNS_11char_traitsIcEENS_9allocatorIcEEEE,__ZTTNSt3__218basic_stringstreamIcNS_11char_traitsIcEENS_9allocatorIcEEEE,__ZTVNSt3__215basic_stringbufIcNS_11char_traitsIcEENS_9allocatorIcEEEE,__ZNSt20bad_array_new_lengthD1Ev,__ZTISt20bad_array_new_length,__ZNSt9bad_allocD1Ev,__ZTISt9bad_alloc,__ZNSt3__24cerrE,__ZNSt3__25ctypeIcE2idE,__ZTVN10__cxxabiv117__class_type_infoE,__ZNSt3__212system_errorD1Ev,__ZTINSt3__212system_errorE,__ZNKSt3__219__shared_weak_count13__get_deleterERKSt9type_info,__ZTINSt3__219__shared_weak_countE,___cxa_atexit \
   --embed-file "$PY/lib/python3.13@/pyhome/lib/python3.13" \
   --embed-file "$DEMO_DIR/talker_rclpy.py@/pyhome/talker_rclpy.py" \
   -L"$PY/lib" \
-  -L"$PREFIX/lib" \
-  -L"$PREFIX/microcdr-2.0.2/lib" \
-  -Wl,--allow-multiple-definition \
   "$DEMO_DIR/rclpy_boot.c" \
   "$DEMO_DIR/wasm_link_stubs_rclpy.c" \
-  -Wl,--start-group -lpython3.13 -lffi -llzma "${LIBS[@]}" -Wl,--end-group \
+  -Wl,--start-group -lpython3.13 -lffi -llzma "$PY/lib/libssl.a" "$PY/lib/libcrypto.a" -Wl,--end-group \
   -o "$DEMO_DIR/out/rclpy_boot.js"
 
 echo "Build finished: $DEMO_DIR/out/rclpy_boot.js / rclpy_boot.wasm"

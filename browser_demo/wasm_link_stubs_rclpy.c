@@ -1,111 +1,21 @@
-// Same rmw graph-introspection / posix thread-naming stubs as
-// browser_demo/wasm_link_stubs.c, minus the CPython C-API section --
-// this build links a real libpython3.13.a, so those symbols are no
-// longer stubs, they're the genuine implementations.
+// Python's _ssl module (statically built into libpython3.13.a) references
+// these legacy TLS 1.0/1.1/1.2-specific SSL_METHOD constructors -- absent
+// from emscripten-forge-4x's openssl package (a modern build with only
+// TLS_method()/generic version negotiation, no per-version legacy
+// constructors). Nothing in this demo actually establishes a TLS
+// connection (rmw_zenoh_pico here connects over plain ws://, not wss://),
+// so these are only ever referenced by _ssl.c's static list of protocol
+// constants, never called -- stub them out rather than dragging in an
+// older/legacy-enabled openssl build for symbols that would always be
+// "unsupported" at runtime anyway.
+//
+// (An earlier revision of this file stubbed rmw_get_*() graph-
+// introspection functions instead -- needed when every ROS .so was
+// linked directly into this executable. That's no longer the case: they
+// dlopen from site-packages at runtime now, and already define these
+// symbols themselves. See rclpy_boot.c's own comment.)
+typedef struct ssl_method_st SSL_METHOD;
 
-#include <stddef.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <sys/types.h>
-
-#include <rcutils/allocator.h>
-#include <rmw/rmw.h>
-#include <rmw/get_node_info_and_types.h>
-#include <rmw/get_service_endpoint_info.h>
-#include <rmw/get_topic_names_and_types.h>
-#include <rmw/get_service_names_and_types.h>
-
-const char * rmw_get_implementation_identifier(void) { return "rmw_zenoh_pico"; }
-
-rmw_ret_t rmw_get_topic_names_and_types(
-  const rmw_node_t * node, rcutils_allocator_t * allocator, bool no_demangle,
-  rmw_names_and_types_t * topic_names_and_types)
-{
-  (void)node; (void)allocator; (void)no_demangle; (void)topic_names_and_types;
-  return RMW_RET_UNSUPPORTED;
-}
-
-rmw_ret_t rmw_get_service_names_and_types(
-  const rmw_node_t * node, rcutils_allocator_t * allocator,
-  rmw_names_and_types_t * service_names_and_types)
-{
-  (void)node; (void)allocator; (void)service_names_and_types;
-  return RMW_RET_UNSUPPORTED;
-}
-
-rmw_ret_t rmw_get_publisher_names_and_types_by_node(
-  const rmw_node_t * node, rcutils_allocator_t * allocator,
-  const char * node_name, const char * node_namespace, bool no_demangle,
-  rmw_names_and_types_t * topic_names_and_types)
-{
-  (void)node; (void)allocator; (void)node_name; (void)node_namespace;
-  (void)no_demangle; (void)topic_names_and_types;
-  return RMW_RET_UNSUPPORTED;
-}
-
-rmw_ret_t rmw_get_subscriber_names_and_types_by_node(
-  const rmw_node_t * node, rcutils_allocator_t * allocator,
-  const char * node_name, const char * node_namespace, bool no_demangle,
-  rmw_names_and_types_t * topic_names_and_types)
-{
-  (void)node; (void)allocator; (void)node_name; (void)node_namespace;
-  (void)no_demangle; (void)topic_names_and_types;
-  return RMW_RET_UNSUPPORTED;
-}
-
-rmw_ret_t rmw_get_service_names_and_types_by_node(
-  const rmw_node_t * node, rcutils_allocator_t * allocator,
-  const char * node_name, const char * node_namespace,
-  rmw_names_and_types_t * service_names_and_types)
-{
-  (void)node; (void)allocator; (void)node_name; (void)node_namespace;
-  (void)service_names_and_types;
-  return RMW_RET_UNSUPPORTED;
-}
-
-rmw_ret_t rmw_get_client_names_and_types_by_node(
-  const rmw_node_t * node, rcutils_allocator_t * allocator,
-  const char * node_name, const char * node_namespace,
-  rmw_names_and_types_t * service_names_and_types)
-{
-  (void)node; (void)allocator; (void)node_name; (void)node_namespace;
-  (void)service_names_and_types;
-  return RMW_RET_UNSUPPORTED;
-}
-
-rmw_ret_t rmw_get_clients_info_by_service(
-  const rmw_node_t * node, rcutils_allocator_t * allocator,
-  const char * service_name, bool no_mangle,
-  rmw_service_endpoint_info_array_t * clients_info)
-{
-  (void)node; (void)allocator; (void)service_name; (void)no_mangle; (void)clients_info;
-  return RMW_RET_UNSUPPORTED;
-}
-
-rmw_ret_t rmw_get_servers_info_by_service(
-  const rmw_node_t * node, rcutils_allocator_t * allocator,
-  const char * service_name, bool no_mangle,
-  rmw_service_endpoint_info_array_t * servers_info)
-{
-  (void)node; (void)allocator; (void)service_name; (void)no_mangle; (void)servers_info;
-  return RMW_RET_UNSUPPORTED;
-}
-
-int dlinfo(void * handle, int request, void * info)
-{
-  (void)handle; (void)request; (void)info;
-  return -1;
-}
-
-int pthread_setname_np(unsigned long thread, const char * name)
-{
-  (void)thread; (void)name;
-  return 0;
-}
-
-int pthread_getname_np(unsigned long thread, char * name, size_t len)
-{
-  (void)thread;
-  if (name != NULL && len > 0) { name[0] = '\0'; }
-  return 0;
-}
+const SSL_METHOD *TLSv1_method(void) { return 0; }
+const SSL_METHOD *TLSv1_1_method(void) { return 0; }
+const SSL_METHOD *TLSv1_2_method(void) { return 0; }

@@ -30,11 +30,12 @@ ros2-sensor-msgs = "*"
 # listed first above, shadows emscripten-forge-4x's newer 1.10.1 — but only
 # once a matching version constraint stops the solver reaching past it).
 zenoh-pico = "1.4.0.*"
-# Runtime link deps for CPython's statically-linked _ctypes/_lzma modules
-# (build-time-only deps of the python recipe itself, so they don't come
-# along transitively — see ../patches/README.md).
+# Runtime link deps for CPython's statically-linked _ctypes/_lzma/_ssl
+# modules (build-time-only deps of the python recipe itself, so they
+# don't come along transitively — see ../patches/README.md).
 libffi = "*"
 xz = "*"
+openssl = "*"
 # For the JupyterLite-xeus notebook (see ../jupyterlite-content) — reuses
 # this same python rather than a separate build, so the kernel and the
 # rclpy/.so extensions it imports share one Python ABI.
