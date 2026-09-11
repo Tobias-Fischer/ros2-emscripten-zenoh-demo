@@ -48,5 +48,13 @@ patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
 patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
   < "$HERE/../patches/pyjs-pyodide-polyfill-to_js-compat.patch"
 
+# pyodide_http's own optional urllib-patching (xeus_python_shell calls it
+# unconditionally on kernel start) can still fail in other ways even past
+# the fix above -- this demo has no urllib/requests code to begin with, so
+# don't let a failure in that convenience patch take the whole kernel
+# down. See ../patches/README.md.
+patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
+  < "$HERE/../patches/xeus_python_shell-urllib-patch-robustness.patch"
+
 ln -sfn "$HERE/.pixi/envs/default" "$HERE/../demo_env"
 echo "demo_env/ ready -> $HERE/.pixi/envs/default"

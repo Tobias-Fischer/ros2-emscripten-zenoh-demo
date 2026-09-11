@@ -1,0 +1,32 @@
+--- a/xeus_python_shell/shell.py	2026-09-11 17:31:16
++++ b/xeus_python_shell/shell.py	2026-09-11 17:31:25
+@@ -74,13 +74,23 @@
+         # are no-op when not using that platform
+         # But I feel better with this
+         if sys.platform == "emscripten" and pyodide_http is not None:
+-            # Apply urllib patches automatically to use js ffi
+-            pyodide_http.patch_urllib(continue_on_import_error=True)
++            try:
++                # Apply urllib patches automatically to use js ffi
++                pyodide_http.patch_urllib(continue_on_import_error=True)
+ 
+-            # We do not apply requests patches for urllib3 >= 2.2.0
+-            # since urllib3 2.2.0 does what we need
+-            if urllib3 is not None and Version(urllib3.__version__) < Version('2.2.0'):
+-                pyodide_http.patch_requests(continue_on_import_error=True)
++                # We do not apply requests patches for urllib3 >= 2.2.0
++                # since urllib3 2.2.0 does what we need
++                if urllib3 is not None and Version(urllib3.__version__) < Version('2.2.0'):
++                    pyodide_http.patch_requests(continue_on_import_error=True)
++            except Exception:
++                # continue_on_import_error above only catches a missing
++                # urllib3/requests -- pyodide_http's own streaming-worker
++                # setup can still raise other errors (real-Pyodide JS
++                # interop gaps in whatever's providing pyodide.ffi here,
++                # for instance). This patch is a pure convenience nobody
++                # calling urllib/requests actually needs; a failure in it
++                # shouldn't take the whole kernel down.
++                pass
+ 
+     def enable_gui(self, gui=None):
+         """Not implemented yet."""

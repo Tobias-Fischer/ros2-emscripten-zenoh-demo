@@ -39,6 +39,25 @@ also documented in the main [README](../README.md#known-limitations).
   Applied with `patch -p1` against the `pyjs` package's own `site-packages`
   directory, same as the `rclpy` patch above.
 
+- **`xeus_python_shell-urllib-patch-robustness.patch`** — one
+  `xeus_python_shell/shell.py` change: wraps its own unconditional
+  `pyodide_http.patch_urllib()`/`patch_requests()` calls (every kernel
+  start) in a broad `try`/`except Exception`. `pyodide_http` already
+  guards the case where `urllib3`/`requests` aren't installed
+  (`continue_on_import_error=True`), but not other failures in its own
+  streaming-worker setup — the `to_js` gap above was one; hitting a
+  *different* one after fixing that (a `pyobject` Proxy not implementing
+  `Symbol.iterator`, patched directly in `xpython.js` — see
+  `.github/scripts/patch_xpython_js.py`, not this directory, since
+  `xpython.js` is a prebuilt binary jupyterlite-xeus downloads, not
+  something assembled from `demo_env`'s conda packages) is what prompted
+  this: this demo has no `urllib`/`requests` code anywhere, so a failure
+  in patching them for browser-fetch use is never something worth losing
+  the whole kernel over, whatever keeps causing it.
+
+  Applied with `patch -p1` against the `xeus_python_shell` package's own
+  `site-packages` directory, same as the other two patches above.
+
 The custom pthreads CPython + numpy patches live in a separate repo, since
 they patch a different project's recipes: see
 [Tobias-Fischer/emscripten-forge-recipes](https://github.com/Tobias-Fischer/emscripten-forge-recipes/tree/wasm-pthreads-python-numpy-orphan)
