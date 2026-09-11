@@ -84,6 +84,9 @@ done
 # same site-packages and pushed the required initial memory past the old
 # 64 MB ("wasm-ld: error: initial memory too small, ~80.7 MB needed"); 128 MB
 # below leaves real headroom rather than just clearing today's number.
+# PTHREAD_POOL_SIZE=16 below, not the default handful -- too few pool
+# workers for this many concurrently dlopen'd .so files can deadlock
+# outright, not just run slow. See build_rclc.sh for the full diagnosis.
 em++ \
   -std=c11 -pthread -x c \
   -DZENOH_EMSCRIPTEN -DRMW_IMPLEMENTATION=rmw_zenoh_pico \
@@ -96,7 +99,7 @@ em++ \
   -sWASM_BIGINT \
   -s USE_ZLIB=1 -s USE_SQLITE3=1 -s USE_BZIP2=1 \
   -lwebsocket.js \
-  -s PTHREAD_POOL_SIZE=4 \
+  -s PTHREAD_POOL_SIZE=16 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s STACK_SIZE=5MB -s DEFAULT_PTHREAD_STACK_SIZE=5MB \
   -s INITIAL_MEMORY=134217728 -s MAXIMUM_MEMORY=1024MB \
