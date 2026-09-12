@@ -18,6 +18,23 @@
 //    on their own sibling *_rosidl_generator_py.so purely as an artifact of
 //    how those packages bundle every typesupport variant together -- no
 //    code here uses rclpy/Python.
+//  - _z_string_len / _z_report_system_error: since bumping zenoh-pico to
+//    1.7.0 (see extra_recipes/zenoh-pico/recipe.yaml), the MAIN_MODULE link
+//    reports these two as undefined ("referenced by root reference"), even
+//    though both are `static inline` in zenoh-pico's own public headers
+//    (collections/string.h, system/common/system_error.h) and every call
+//    site (including zenoh-pico's own src/link/unicast/ws.c, and
+//    rmw_zenoh_pico's zenoh_pico_string.c/rmw_zenoh_pico_logging.h) has
+//    those headers available -- some object in the SIDE_MODULE link graph
+//    ends up with a real (non-inlined) call needing external resolution.
+//    Real, callable definitions here resolve it regardless of the exact
+//    mechanism. Not including zenoh-pico's headers here (to get the real
+//    _z_string_t/_z_slice_t types) deliberately: including them would also
+//    pull in their own `static inline` _z_string_len/_z_report_system_error,
+//    colliding with the non-static definitions below. Instead this
+//    reproduces their layout locally -- at the wasm level a struct pointer
+//    is just an i32, so an ABI-compatible local mirror links identically to
+//    the real type.
 //
 // None of these are ever actually invoked by this C-only demo; they exist
 // solely so Emscripten's MAIN_MODULE loader can resolve every import.
@@ -25,6 +42,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <sys/types.h>
 
 #include <rcutils/allocator.h>
@@ -183,3 +201,20 @@ PyObject * PyUnicode_DecodeUTF8(const char * s, ssize_t size, const char * error
 void _Py_Dealloc(PyObject * obj) { (void)obj; }
 struct _stub_py_storage _Py_TrueStruct_storage;
 PyObject * _Py_TrueStruct = (PyObject *)&_Py_TrueStruct_storage;
+
+// ---- zenoh-pico static-inline helpers (see comment block above) -------
+typedef struct {
+  size_t len;
+  const uint8_t * start;
+} _wls_z_slice_t;
+
+typedef struct {
+  _wls_z_slice_t _slice;
+} _wls_z_string_t;
+
+size_t _z_string_len(const _wls_z_string_t * s) { return s->_slice.len; }
+
+void _z_report_system_error(int errcode)
+{
+  fprintf(stderr, "System error: %d\n", errcode);
+}
