@@ -72,6 +72,7 @@ em++ \
   -lwebsocket.js \
   -sSOCKET_DEBUG=1 \
   -sASYNCIFY -s ASYNCIFY_STACK_SIZE=24576 \
+  -s ASYNCIFY_IMPORTS=rclc_node_init_default,rcl_node_init,rmw_create_node,z_open,z_session_drop,z_liveliness_declare_token,rclc_publisher_init_default,rcl_publisher_init,rmw_create_publisher,z_declare_publisher,rclc_executor_spin_some,rcl_wait,rmw_wait,zp_read,zp_send_keep_alive,z_sleep_ms,rcl_timer_call,rcl_publish,rmw_publish,z_publisher_put \
   -s ALLOW_MEMORY_GROWTH=1 \
   -L"$PREFIX/lib" \
   -L"$PREFIX/microcdr-2.0.2/lib" \

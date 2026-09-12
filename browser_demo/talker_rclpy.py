@@ -1,10 +1,17 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.event_handler import PublisherEventCallbacks
+from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String
 
 print("talker_rclpy: rclpy.init()", flush=True)
-rclpy.init(args=[])
+# install_signal_handlers's default (SignalHandlerOptions.ALL) spawns a real
+# std::thread to safely trigger shutdown from a signal handler -- unavailable
+# in this non-pthreads Asyncify build (confirmed: "RuntimeError: thread
+# constructor failed: Resource temporarily unavailable"). Nothing in this
+# demo relies on Ctrl+C-triggered shutdown, so skip it entirely.
+rclpy.init(args=[], signal_handler_options=SignalHandlerOptions.NO)
+print("talker_rclpy: rclpy.init() done, creating Node", flush=True)
 
 # start_parameter_services=False: the parameter get/set/list services pull in
 # service_msgs.ServiceEventInfo's service-introspection "_Event" type, which
