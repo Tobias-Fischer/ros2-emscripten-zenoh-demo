@@ -198,6 +198,25 @@ jobs:
           python3 demo-repo/.github/scripts/patch_xpython_js.py \
             demo-repo/jupyterlite-content/_output/xeus/demo_env/bin/xpython.js
 
+      # jupyterlite-xeus downloads its own prebuilt, stock xpython.js --
+      # never touched by this repo's own package builds, and never
+      # Asyncify-enabled. Without these fixes, `import rclpy` fails
+      # outright: rclpy's own compiled extension needs Asyncify-aware
+      # dynamic-linking support (a real std::thread/exception-safe
+      # indirect-call requirement elsewhere in this project's own
+      # -sASYNCIFY .so builds), and the stock host module provides none
+      # of it -- confirmed live: "LinkError: WebAssembly.Instance():
+      # Import #71 "env" "__asyncify_state": imported mutable global must
+      # be a WebAssembly.Global object". See the script's own header
+      # comment for the full rationale -- written and previously applied
+      # only manually/ad-hoc (to a local scratch xpython.js used for
+      # direct browser testing outside this build); this wires the exact
+      # same fix into the actual deployed jupyterlite-xeus copy.
+      - name: Fix Asyncify-less dynamic linking in the JupyterLite kernel
+        run: |
+          node demo-repo/patches/patch_stock_xpython_js.mjs \
+            demo-repo/jupyterlite-content/_output/xeus/demo_env/bin/xpython.js
+
       # ---- assemble and deploy --------------------------------------------
       # Every wasm binary + its ~90-file .so dependency closure lives under
       # _pages/v/<short-sha>/ -- a fresh, never-reused path on every deploy --
