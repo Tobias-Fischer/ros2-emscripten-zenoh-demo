@@ -37,23 +37,46 @@ pixi install
 # rmw_zenoh_pico gaps this pipeline works around locally, not upstream yet
 # (see ../README.md's Known limitations) — not present in the packaged
 # rclpy, so patch it here every time the env is (re)assembled.
-patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
-  < "$HERE/../patches/rclpy-node-rmw_zenoh_pico-workarounds.patch"
+#
+# -N (ignore already-applied patches) + `|| true` on all three patches
+# below: this session's rclpy/pyjs rebuilds now sometimes already carry
+# one of these fixes upstream in the built package itself (e.g. the
+# rclpy-node patch's exact hunk was already present verbatim in a rebuilt
+# ros2-rclpy), which makes `patch` unable to match context and fall back
+# to an interactive "File to patch:" prompt -- fatal under `set -e` with
+# no stdin attached. -N detects the already-applied case cleanly instead
+# of erroring; `|| true` is a safety net for any other spurious mismatch,
+# since none of these patches are load-bearing for a build that already
+# has the fix baked in.
+patch -p1 -N -d .pixi/envs/default/lib/python3.13/site-packages \
+  < "$HERE/../patches/rclpy-node-rmw_zenoh_pico-workarounds.patch" || true
 
 # pyjs's pyodide.ffi.to_js() polyfill doesn't accept dict_converter (or
 # other) real-Pyodide kwargs -- breaks pyodide_http on import, which
 # xeus_python_shell imports unconditionally on every JupyterLite kernel
 # start. Upstream bug, still open: see ../patches/README.md.
-patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
-  < "$HERE/../patches/pyjs-pyodide-polyfill-to_js-compat.patch"
+patch -p1 -N -d .pixi/envs/default/lib/python3.13/site-packages \
+  < "$HERE/../patches/pyjs-pyodide-polyfill-to_js-compat.patch" || true
 
 # pyodide_http's own optional urllib-patching (xeus_python_shell calls it
 # unconditionally on kernel start) can still fail in other ways even past
 # the fix above -- this demo has no urllib/requests code to begin with, so
 # don't let a failure in that convenience patch take the whole kernel
 # down. See ../patches/README.md.
-patch -p1 -d .pixi/envs/default/lib/python3.13/site-packages \
-  < "$HERE/../patches/xeus_python_shell-urllib-patch-robustness.patch"
+patch -p1 -N -d .pixi/envs/default/lib/python3.13/site-packages \
+  < "$HERE/../patches/xeus_python_shell-urllib-patch-robustness.patch" || true
+
+# asyncio's running-loop marker doesn't reliably survive between separate
+# top-level calls into the wasm module on this build (confirmed via a
+# Node.js harness driving the real xeus xkernel/notify_listener() path
+# directly: `RuntimeError: no running event loop` on the very first
+# execute_request after kernel.start(), even though pyjs.webloop already
+# constructs a WebLoop during kernel configure). Defensively recreate the
+# loop right before use instead of assuming a prior call's setup
+# persisted. See ../ros-rolling-emscripten-zenoh/AGENTS.md's Asyncify
+# migration section for the full investigation.
+patch -p1 -N -d .pixi/envs/default/lib/python3.13/site-packages \
+  < "$HERE/../patches/xeus_python_shell-defensive-event-loop.patch" || true
 
 ln -sfn "$HERE/.pixi/envs/default" "$HERE/../demo_env"
 echo "demo_env/ ready -> $HERE/.pixi/envs/default"

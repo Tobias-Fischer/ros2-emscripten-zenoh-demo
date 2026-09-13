@@ -46,7 +46,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/linux-64/openssl-3.6.4-h781a0a9_0.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/python-3.12.14-h5f976f7_3_cpython.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/pyyaml-6.0.3-py312h8a5da7c_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/linux-64/pyzmq-27.2.0-py312h8a5ba0d_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/linux-64/pyzmq-27.2.0-py312h8a5ba0d_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/readline-8.3-hd6e31c0_1.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/rpds-py-2026.6.3-py312hc767a74_2.conda
       - conda: https://conda.anaconda.org/conda-forge/linux-64/tk-8.6.13-noxft_h1df4ec4_4.conda
@@ -232,7 +232,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyobjc-framework-cocoa-12.2.2-py314hddd3963_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/python-3.14.7-h0ae1c2c_106_cp314.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyyaml-6.0.3-py314h6e9b3f0_1.conda
-      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyzmq-27.2.0-py312hcedbef1_0.conda
+      - conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyzmq-27.2.0-py312hcedbef1_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/readline-8.3-h8b90a29_1.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/rpds-py-2026.6.3-py314hc05cd11_2.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/tk-8.6.13-hbeba79b_4.conda
@@ -673,10 +673,10 @@ packages:
   run_exports: {}
   size: 198293
   timestamp: 1770223620706
-- conda: https://conda.anaconda.org/conda-forge/linux-64/pyzmq-27.2.0-py312h8a5ba0d_0.conda
+- conda: https://conda.anaconda.org/conda-forge/linux-64/pyzmq-27.2.0-py312h8a5ba0d_1.conda
   noarch: python
-  sha256: 9e8b94a2c9b4479cac80def117178a1658b089b9e5d4ee64408d2e4ff89fdaba
-  md5: ceffbc006d87e8f81e750cebd63fd8c4
+  sha256: 78dc5f5ab0c6a294a3998872dc391087205abf2030963a243cc6fa7eadef5c4b
+  md5: a5b12b1faf14ff9a4bef4413b19d1e27
   depends:
   - python
   - libstdcxx >=15
@@ -690,8 +690,8 @@ packages:
   purls:
   - pkg:pypi/pyzmq?source=compressed-mapping
   run_exports: {}
-  size: 214050
-  timestamp: 1787300896477
+  size: 216608
+  timestamp: 1789103748576
 - conda: https://conda.anaconda.org/conda-forge/linux-64/readline-8.3-hd6e31c0_1.conda
   sha256: 01b3fe073a66e321970d09e04b388708f8cbdca5cdfbfcb7c9eeb470ad10383d
   md5: 69c01c781e7c8190bbdaf79e3848c5ca
@@ -780,6 +780,7 @@ packages:
   - libsodium >=1.0.22,<1.0.23.0a0
   - krb5 >=1.22.2,<1.23.0a0
   license: MPL-2.0
+  license_family: MOZILLA
   purls: []
   run_exports:
     weak:
@@ -2188,24 +2189,24 @@ packages:
   run_exports: {}
   size: 189475
   timestamp: 1770223788648
-- conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyzmq-27.2.0-py312hcedbef1_0.conda
+- conda: https://conda.anaconda.org/conda-forge/osx-arm64/pyzmq-27.2.0-py312hcedbef1_1.conda
   noarch: python
-  sha256: de17d16785e44ea075ba0912ad4618db3438a3cf79c13249b1646ac4e616ea35
-  md5: 52d1e1fe1463e21e34be9b8c2bf6c96c
+  sha256: 676297fbad084ed2331f33dd5293248ba248dae26b4fe1abb7d688e37b51c208
+  md5: 4eff7833d88e95a05263939b0346c8d2
   depends:
   - python
-  - __osx >=11.0
   - libcxx >=21
+  - __osx >=11.0
+  - zeromq >=4.3.5,<4.4.0a0
   - _python_abi3_support 1.*
   - cpython >=3.12
-  - zeromq >=4.3.5,<4.4.0a0
   license: BSD-3-Clause
   license_family: BSD
   purls:
   - pkg:pypi/pyzmq?source=compressed-mapping
   run_exports: {}
-  size: 195379
-  timestamp: 1787301084171
+  size: 200863
+  timestamp: 1789104047903
 - conda: https://conda.anaconda.org/conda-forge/osx-arm64/readline-8.3-h8b90a29_1.conda
   sha256: d6782b430e6dce4fe8c7ac118cd988d5a193eb4a7f60741edfaede58016b6110
   md5: 9347fd56a002e6b58946831d48fe62f6
@@ -2286,6 +2287,7 @@ packages:
   - libsodium >=1.0.22,<1.0.23.0a0
   - krb5 >=1.22.2,<1.23.0a0
   license: MPL-2.0
+  license_family: MOZILLA
   purls: []
   run_exports:
     weak:

@@ -1,0 +1,40 @@
+--- a/xeus_python_shell/shell.py
++++ b/xeus_python_shell/shell.py
+@@ -54,7 +54,36 @@
+                 await asyncio.sleep(0)
+                 callback() # <- this will send the execute request reply
+
+-        future =  asyncio.get_running_loop().create_task(wrapped(coro, post_execute, callback, self.run_cell_lock))
++        # On this project's emscripten-wasm32 build, whatever Asyncify/
++        # Emscripten does between separate top-level calls into the wasm
++        # module does not reliably preserve asyncio's running-loop marker
++        # across calls -- `pyjs.webloop` already constructs a WebLoop
++        # during kernel configure (see pyjs/webloop.py), but by the time
++        # a real `execute_request` reaches here (a separate top-level
++        # call from the frontend), `asyncio.get_running_loop()` can raise
++        # `RuntimeError: no running event loop` even though a WebLoop was
++        # already constructed once. WebLoop's own `__init__` immediately
++        # calls `asyncio._set_running_loop(self)`, so simply constructing
++        # a fresh one here is enough to recover -- cheap and harmless if
++        # a loop is already running. Reuse the ALREADY-cached
++        # `pyjs.webloop` module (from the earlier successful `import
++        # pyjs` during kernel configure) rather than a fresh `import
++        # pyjs.webloop` -- a fresh import re-runs that module's own
++        # top-level `import js` statement, which fails
++        # (`ModuleNotFoundError: No module named 'js'`) from this later
++        # call for the same reason the running-loop marker doesn't
++        # persist; the cached module's own globals (including its `js`
++        # reference) are still valid, so avoid re-executing them.
++        try:
++            loop = asyncio.get_running_loop()
++        except RuntimeError:
++            import sys
++            _webloop_mod = sys.modules.get('pyjs.webloop')
++            if _webloop_mod is None:
++                import pyjs.webloop as _webloop_mod
++            loop = _webloop_mod.WebLoop()
++            asyncio.set_event_loop(loop)
++        future = loop.create_task(wrapped(coro, post_execute, callback, self.run_cell_lock))
+
+ xeus_loop_runner = XPythonLoopRunner()
+

@@ -12,3 +12,8 @@ jupyterlite-content/_output/
 site/assets/
 site/jupyterlite/
 jupyterlite-content/.jupyterlite.doit.db
+
+# Throwaway local test/validation artifacts (Node harnesses, merged
+# kernel_packages copies for swap-testing, etc.) -- never committed, kept
+# inside the repo instead of /tmp so they stay alongside the real project.
+scratch/
