@@ -63,7 +63,23 @@ jobs:
       - name: Parse source refs
         id: refs
         run: |
-          ros_ref="${{ inputs.ros_rolling_ref || 'Tobias-Fischer/ros-rolling@feature/emscripten-wasm32-zenoh-pico' }}"
+          # Was 'feature/emscripten-wasm32-zenoh-pico' -- the pre-pivot branch
+          # this whole pipeline originally targeted, back when the plan was to
+          # replace pthreads with Asyncify-based cooperative polling. That
+          # plan was abandoned (see ros-rolling-emscripten-zenoh/AGENTS.md's
+          # "MAJOR PIVOT") in favor of non-blocking polling with no Asyncify
+          # anywhere, on 'pico-update-tmp' -- which also carries every other
+          # fix from that point on (the zenoh-pico local-delivery fix, the
+          # rosidl_typesupport_microxrcedds_c string-deserialize overflow,
+          # the corrupted rmw_zenoh_pico patch, etc.). The old branch was
+          # still what got deployed until now, which is why the deployed
+          # site's rclpy needed a dummy-Asyncify-global shim to link at all
+          # (see the "Fix Asyncify-less dynamic linking" step below) --
+          # confirmed via `wasm-objdump`: a fresh build off this branch has
+          # zero Asyncify imports, so that shim becomes unnecessary dead
+          # weight once this ref actually reflects the current build,
+          # though it's harmless to leave in either way.
+          ros_ref="${{ inputs.ros_rolling_ref || 'Tobias-Fischer/ros-rolling@pico-update-tmp' }}"
           rec_ref="${{ inputs.recipes_ref || 'Tobias-Fischer/emscripten-forge-recipes@main' }}"
           echo "ros_repo=${ros_ref%@*}" >> "$GITHUB_OUTPUT"
           echo "ros_branch=${ros_ref#*@}" >> "$GITHUB_OUTPUT"
