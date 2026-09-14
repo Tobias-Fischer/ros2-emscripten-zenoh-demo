@@ -242,6 +242,44 @@ ros2 topic echo /chatter'</pre>
     <a class="btn primary" href="v/%%ASSET_VERSION%%/jupyterlite/notebooks/index.html?path=demo.ipynb" target="_blank" rel="noopener">Open the notebook →</a>
   </section>
 
+  <section id="throughput">
+    <h2 class="h">How fast is this, really?</h2>
+    <h3 class="section-title">Measured throughput, not just "it works"</h3>
+    <p class="section-lede">
+      The demos above publish at a deliberately modest, battery-friendly rate — but how much
+      headroom is actually there? Measured with a native <code>ros2 topic hz</code> /
+      <code>ros2 topic bw</code> (the same <a href="#demos">native verification</a> tooling
+      above) against a local router, temporarily patching the camera demo's own publish rate
+      to find where it actually breaks down, then reverting — nothing below is shipped code,
+      just a benchmarking pass.
+    </p>
+    <div class="table-scroll">
+    <table class="sources-table">
+      <thead><tr><th>Configuration</th><th>Measured rate</th><th>Bandwidth</th></tr></thead>
+      <tbody>
+        <tr><td>rclc talker (as deployed)</td><td>2.0 Hz</td><td>~105 B/s (52 B <code>std_msgs/String</code>)</td></tr>
+        <tr><td>Camera demo (as deployed)</td><td>10.0 Hz</td><td>~23 KB/s (~2.3 KB JPEG)</td></tr>
+        <tr><td>Camera, timer pushed to 200 Hz</td><td>200 Hz (exact)</td><td>~420 KB/s</td></tr>
+        <tr><td>Camera, timer pushed to 1000 Hz*</td><td>plateaus at ~250 Hz</td><td>~500 KB/s</td></tr>
+        <tr><td>Camera, 1000 Hz + <code>MessageChannel</code> tick loop</td><td>~1000 Hz (exact)</td><td>~2.2 MB/s</td></tr>
+        <tr><td>Camera, uncapped timer + <code>MessageChannel</code></td><td>~4700 Hz (ceiling)</td><td>~10–11 MB/s</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="section-lede" style="margin-top:16px;">
+      *The 250 Hz plateau despite requesting 1000 Hz is a real, well-known browser quirk, not a
+      zenoh/ROS 2 limit: browsers clamp <code>setInterval</code>/<code>setTimeout</code> to a
+      ~4 ms floor (1000&nbsp;ms / 4&nbsp;ms = 250) — exactly what was measured. Rescheduling the
+      tick via a <code>MessageChannel</code> <code>postMessage</code> loop (a standard technique
+      for sub-4 ms callback scheduling in browsers) removes that ceiling entirely, scaling
+      cleanly to the requested rate all the way up to ~4700 Hz, where <code>rcl_publish()</code> +
+      zenoh-pico's WebSocket write + the full round trip to a native subscriber finally becomes
+      the real bottleneck — still around 10 MB/s for ~2 KB messages. In short: the current 2–10 Hz
+      demo rates are a deliberate UX/battery choice with roughly <em>three orders of magnitude</em>
+      of headroom underneath, not a sign this architecture is slow.
+    </p>
+  </section>
+
   <section id="limits">
     <h2 class="h">Known limitations</h2>
     <ul class="limits-list">
