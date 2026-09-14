@@ -9,6 +9,7 @@
 // into wasm linear memory; index_robot_view.html (the real main thread,
 // since canvas rendering needs DOM access the worker doesn't have) polls
 // it on every animation frame to redraw a small robot icon.
+#include <stdbool.h>
 #include <stdio.h>
 #include <math.h>
 
@@ -57,6 +58,11 @@ char * zenoh_get_connect_port_buf(void) { return zenoh_connect_port; }
   } else { \
     printf("Failed status on line %d: %d\n", __LINE__, (int)rc); \
   } } }
+
+static rclc_support_t support;
+static rcl_node_t node;
+static rclc_executor_t executor;
+static rcl_timer_t integration_timer;
 
 rcl_subscription_t subscription;
 geometry_msgs__msg__Twist cmd_vel_msg;
@@ -108,6 +114,63 @@ void integration_timer_callback(rcl_timer_t * timer, int64_t last_call_time, uin
   robot_pose.y += current_linear_x * sin(robot_pose.theta) * INTEGRATION_PERIOD_S;
 }
 
+// True once node/subscription/timer/executor creation has actually
+// succeeded -- see rclc_demo_tick() below.
+static bool demo_ready = false;
+
+// rmw_zenoh_pico's z_open() kicks off the WebSocket connection but can't
+// block waiting for it to finish -- so the very first rclc_node_init_default()
+// call is *expected* to fail here, every time, regardless of how fast the
+// router responds (see talker_rclc.c for the full rationale). Retried from
+// scratch on later ticks until it stops failing.
+static bool rclc_demo_try_init(void)
+{
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+
+  node = rcl_get_zero_initialized_node();
+  if (rclc_node_init_default(&node, "wasm_zenoh_robot_view_rclc", "", &support) != RCL_RET_OK) {
+    return false;
+  }
+
+  subscription = rcl_get_zero_initialized_subscription();
+  if (rclc_subscription_init_default(
+        &subscription, &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
+        "cmd_vel") != RCL_RET_OK)
+  {
+    return false;
+  }
+
+  integration_timer = rcl_get_zero_initialized_timer();
+  RCCHECK(rclc_timer_init_default(
+    &integration_timer, &support, RCL_MS_TO_NS((int)(INTEGRATION_PERIOD_S * 1000)),
+    integration_timer_callback));
+
+  // One subscription + one timer -> handle count 2.
+  RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
+  RCCHECK(rclc_executor_add_subscription(
+    &executor, &subscription, &cmd_vel_msg, &cmd_vel_callback, ON_NEW_DATA));
+  RCCHECK(rclc_executor_add_timer(&executor, &integration_timer));
+
+  geometry_msgs__msg__Twist__init(&cmd_vel_msg);
+
+  printf("wasm32 rclc robot_view demo ready, subscribing to Twist on 'cmd_vel' via rmw_zenoh_pico\n");
+  printf("Drive it from the teleop or IMU demo pages.\n");
+  return true;
+}
+
+// Called repeatedly from JS (see robot_view.html). Retries setup until the
+// zenoh session is actually up, then spins the executor once per call.
+EMSCRIPTEN_KEEPALIVE
+void rclc_demo_tick(void)
+{
+  if (!demo_ready) {
+    demo_ready = rclc_demo_try_init();
+    return;
+  }
+  rclc_executor_spin_some(&executor, RCL_MS_TO_NS(20));
+}
+
 int main(int argc, char const * const * argv)
 {
   if (zenoh_connect_host[0] != '\0') {
@@ -118,41 +181,7 @@ int main(int argc, char const * const * argv)
   }
 
   rcl_allocator_t allocator = rcl_get_default_allocator();
-  rclc_support_t support;
   RCCHECK(rclc_support_init(&support, argc, argv, &allocator));
-
-  rcl_node_t node = rcl_get_zero_initialized_node();
-  RCCHECK(rclc_node_init_default(&node, "wasm_zenoh_robot_view_rclc", "", &support));
-
-  subscription = rcl_get_zero_initialized_subscription();
-  RCCHECK(rclc_subscription_init_default(
-    &subscription, &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist),
-    "cmd_vel"));
-
-  rcl_timer_t integration_timer = rcl_get_zero_initialized_timer();
-  RCCHECK(rclc_timer_init_default(
-    &integration_timer, &support, RCL_MS_TO_NS((int)(INTEGRATION_PERIOD_S * 1000)),
-    integration_timer_callback));
-
-  // One subscription + one timer -> handle count 2.
-  rclc_executor_t executor;
-  RCCHECK(rclc_executor_init(&executor, &support.context, 2, &allocator));
-  RCCHECK(rclc_executor_add_subscription(
-    &executor, &subscription, &cmd_vel_msg, &cmd_vel_callback, ON_NEW_DATA));
-  RCCHECK(rclc_executor_add_timer(&executor, &integration_timer));
-
-  geometry_msgs__msg__Twist__init(&cmd_vel_msg);
-
-  printf("wasm32 rclc robot_view demo starting, subscribing to Twist on 'cmd_vel' via rmw_zenoh_pico\n");
-  printf("Drive it from the teleop or IMU demo pages.\n");
-
-  while (true) {
-    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(20));
-  }
-
-  RCCHECK(rcl_subscription_fini(&subscription, &node));
-  RCCHECK(rcl_node_fini(&node));
 
   return 0;
 }

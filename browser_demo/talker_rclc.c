@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -52,6 +53,21 @@ rcl_publisher_t publisher;
 std_msgs__msg__String msg;
 size_t counter = 0;
 
+// Survive past main() returning -- see rclc_demo_spin_once() below. This
+// project's rcl/rmw/zenoh-pico stack dropped pthreads+Asyncify project-wide
+// (rmw_zenoh_pico's rmw_wait() now polls zenoh-pico's non-threaded
+// zp_read()/zp_send_keep_alive() API directly instead of blocking on a
+// condvar another thread would signal), so there is no longer anything for
+// a blocking `while (true) { rclc_executor_spin_some(...); }` loop in
+// main() to cooperatively yield *from* -- Asyncify only mattered when that
+// loop had to suspend/resume around a real blocking wait. main() now just
+// does one-time setup and returns; index_rclc.html drives repeated spins
+// from JS instead (a setInterval calling rclc_demo_spin_once()).
+static rclc_support_t support;
+static rcl_node_t node;
+static rclc_executor_t executor;
+static rcl_timer_t timer;
+
 void timer_callback(rcl_timer_t * timer, int64_t last_call_time, uintptr_t next_call_time)
 {
   (void) next_call_time;
@@ -66,6 +82,69 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time, uintptr_t next_
   RCCHECK(rcl_publish(&publisher, &msg, NULL));
 }
 
+// True once node/publisher/timer/executor creation has actually succeeded --
+// see rclc_demo_tick() below.
+static bool demo_ready = false;
+
+// rmw_zenoh_pico's z_open() kicks off the WebSocket connection but can't
+// block waiting for it to finish (no real thread to block on, and blocking
+// the one JS-driven thread would freeze the page before the "open" event
+// ever gets a chance to fire) -- so the very first rclc_node_init_default()
+// call is *expected* to fail here, every time, regardless of how fast the
+// router responds: the WebSocket "open" callback can only run once this
+// synchronous call returns control to the JS event loop, which hasn't
+// happened yet on the first attempt. rmw_zenoh_pico's own session_connect()
+// (src/zenoh_pico/zenoh_pico_session.c) was written to expect exactly this
+// -- a fresh z_owned_config_t each call, safe to retry from scratch -- so
+// rclc_demo_tick() below just calls this again on later ticks until it
+// stops failing, the same pattern this project's rclpy path already
+// relies on (see pkg_additional_info.yaml's rmw_zenoh_pico build 28 note).
+static bool rclc_demo_try_init(void)
+{
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+
+  node = rcl_get_zero_initialized_node();
+  if (rclc_node_init_default(&node, "wasm_zenoh_talker_rclc", "", &support) != RCL_RET_OK) {
+    return false;
+  }
+
+  if (rclc_publisher_init_default(
+        &publisher, &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
+        "chatter") != RCL_RET_OK)
+  {
+    return false;
+  }
+
+  timer = rcl_get_zero_initialized_timer();
+  RCCHECK(rclc_timer_init_default(
+    &timer, &support, RCL_MS_TO_NS(500), timer_callback));
+
+  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+  RCCHECK(rclc_executor_add_timer(&executor, &timer));
+
+  std_msgs__msg__String__init(&msg);
+
+  printf("wasm32 rclc talker ready, publishing on 'chatter' via rmw_zenoh_pico\n");
+  return true;
+}
+
+// Called repeatedly from JS (see index_rclc.html) once main() has returned.
+// Retries setup until the zenoh session is actually up (see
+// rclc_demo_try_init() above), then does one rclc_executor_spin_some() per
+// call -- the timeout here just bounds how long a single call may poll for
+// incoming zenoh traffic before returning control to JS; it does not need
+// to (and must not) block indefinitely.
+EMSCRIPTEN_KEEPALIVE
+void rclc_demo_tick(void)
+{
+  if (!demo_ready) {
+    demo_ready = rclc_demo_try_init();
+    return;
+  }
+  rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+}
+
 int main(int argc, char const * const * argv)
 {
   if (zenoh_connect_host[0] != '\0') {
@@ -76,35 +155,7 @@ int main(int argc, char const * const * argv)
   }
 
   rcl_allocator_t allocator = rcl_get_default_allocator();
-  rclc_support_t support;
   RCCHECK(rclc_support_init(&support, argc, argv, &allocator));
-
-  rcl_node_t node = rcl_get_zero_initialized_node();
-  RCCHECK(rclc_node_init_default(&node, "wasm_zenoh_talker_rclc", "", &support));
-
-  RCCHECK(rclc_publisher_init_default(
-    &publisher, &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, String),
-    "chatter"));
-
-  rcl_timer_t timer = rcl_get_zero_initialized_timer();
-  RCCHECK(rclc_timer_init_default(
-    &timer, &support, RCL_MS_TO_NS(500), timer_callback));
-
-  rclc_executor_t executor;
-  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-  RCCHECK(rclc_executor_add_timer(&executor, &timer));
-
-  std_msgs__msg__String__init(&msg);
-
-  printf("wasm32 rclc talker starting, publishing on 'chatter' via rmw_zenoh_pico\n");
-
-  while (true) {
-    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-  }
-
-  RCCHECK(rcl_publisher_fini(&publisher, &node));
-  RCCHECK(rcl_node_fini(&node));
 
   return 0;
 }

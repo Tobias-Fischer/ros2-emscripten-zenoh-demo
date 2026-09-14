@@ -11,14 +11,6 @@ command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run 
 
 mkdir -p "$DEMO_DIR/out"
 
-# The emscripten-forge toolchain env's own activation script sets
-# EMCC_CFLAGS="... -sSUPPORT_LONGJMP=wasm -fwasm-exceptions" globally --
-# every em++ call gets native wasm exception-handling by default, which
-# crashes binaryen's Asyncify pass outright ("UNREACHABLE executed ...
-# Asyncify.cpp"), not just compiles slower. Override it here, dropping just
-# the exception-handling part (matching the toolchain's own base flags).
-export EMCC_CFLAGS="-O2 -g0 -fPIC -msimd128"
-
 # Same geometry_msgs LIBS set as build_teleop.sh (identical message type).
 LIBS=(
   "$PREFIX/lib/librclc.so"
@@ -51,13 +43,13 @@ em++ \
   "${INCLUDE_FLAGS[@]}" \
   -sMAIN_MODULE=2 \
   -s ASSERTIONS=1 \
-  -fexceptions \
+  -fwasm-exceptions \
   -sWASM_BIGINT \
   -sINVOKE_RUN=0 \
+  -sEXIT_RUNTIME=0 \
   -sEXPORTED_RUNTIME_METHODS=ccall,HEAPF64,HEAP32,stringToUTF8,callMain \
   -lwebsocket.js \
   -sSOCKET_DEBUG=1 \
-  -sASYNCIFY -s ASYNCIFY_STACK_SIZE=24576 \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s MAXIMUM_MEMORY=1024MB \
   -L"$PREFIX/lib" \

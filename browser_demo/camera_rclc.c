@@ -23,6 +23,7 @@
 // comfortable worst case (MAX_JPEG_BYTES), not the actual per-frame size
 // -- see camera_set_frame_length() for how JS reports how much of it is
 // actually valid on a given frame.
+#include <stdbool.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -83,6 +84,11 @@ char * zenoh_get_connect_port_buf(void) { return zenoh_connect_port; }
 // frame) rather than overflowing the buffer.
 #define MAX_JPEG_BYTES 32768
 
+static rclc_support_t support;
+static rcl_node_t node;
+static rclc_executor_t executor;
+static rcl_timer_t timer;
+
 rcl_publisher_t publisher;
 sensor_msgs__msg__CompressedImage msg;
 
@@ -116,6 +122,59 @@ void timer_callback(rcl_timer_t * timer, int64_t last_call_time, uintptr_t next_
   RCCHECK(rcl_publish(&publisher, &msg, NULL));
 }
 
+// True once node/publisher/timer/executor creation has actually succeeded --
+// see rclc_demo_tick() below.
+static bool demo_ready = false;
+
+// rmw_zenoh_pico's z_open() kicks off the WebSocket connection but can't
+// block waiting for it to finish -- so the very first rclc_node_init_default()
+// call is *expected* to fail here, every time, regardless of how fast the
+// router responds (see talker_rclc.c for the full rationale). Retried from
+// scratch on later ticks until it stops failing.
+static bool rclc_demo_try_init(void)
+{
+  rcl_allocator_t allocator = rcl_get_default_allocator();
+
+  node = rcl_get_zero_initialized_node();
+  if (rclc_node_init_default(&node, "wasm_zenoh_camera_rclc", "", &support) != RCL_RET_OK) {
+    return false;
+  }
+
+  if (rclc_publisher_init_default(
+        &publisher, &node,
+        ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, CompressedImage),
+        "camera/image") != RCL_RET_OK)
+  {
+    return false;
+  }
+
+  // 10 Hz -- an order of magnitude faster than the old raw-Image version
+  // could afford, since a JPEG frame this size is a couple of KB instead
+  // of 57.6 KB.
+  timer = rcl_get_zero_initialized_timer();
+  RCCHECK(rclc_timer_init_default(
+    &timer, &support, RCL_MS_TO_NS(100), timer_callback));
+
+  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
+  RCCHECK(rclc_executor_add_timer(&executor, &timer));
+
+  printf("wasm32 rclc camera demo ready, publishing %dx%d JPEG CompressedImage on 'camera/image' via rmw_zenoh_pico\n",
+    IMG_WIDTH, IMG_HEIGHT);
+  return true;
+}
+
+// Called repeatedly from JS (see index_camera.html). Retries setup until the
+// zenoh session is actually up, then spins the executor once per call.
+EMSCRIPTEN_KEEPALIVE
+void rclc_demo_tick(void)
+{
+  if (!demo_ready) {
+    demo_ready = rclc_demo_try_init();
+    return;
+  }
+  rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
+}
+
 int main(int argc, char const * const * argv)
 {
   if (zenoh_connect_host[0] != '\0') {
@@ -126,28 +185,10 @@ int main(int argc, char const * const * argv)
   }
 
   rcl_allocator_t allocator = rcl_get_default_allocator();
-  rclc_support_t support;
   RCCHECK(rclc_support_init(&support, argc, argv, &allocator));
 
-  rcl_node_t node = rcl_get_zero_initialized_node();
-  RCCHECK(rclc_node_init_default(&node, "wasm_zenoh_camera_rclc", "", &support));
-
-  RCCHECK(rclc_publisher_init_default(
-    &publisher, &node,
-    ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, CompressedImage),
-    "camera/image"));
-
-  // 10 Hz -- an order of magnitude faster than the old raw-Image version
-  // could afford, since a JPEG frame this size is a couple of KB instead
-  // of 57.6 KB.
-  rcl_timer_t timer = rcl_get_zero_initialized_timer();
-  RCCHECK(rclc_timer_init_default(
-    &timer, &support, RCL_MS_TO_NS(100), timer_callback));
-
-  rclc_executor_t executor;
-  RCCHECK(rclc_executor_init(&executor, &support.context, 1, &allocator));
-  RCCHECK(rclc_executor_add_timer(&executor, &timer));
-
+  // Buffer allocation doesn't depend on the zenoh session -- do it once
+  // here, not in the retried init path.
   sensor_msgs__msg__CompressedImage__init(&msg);
   rosidl_runtime_c__String__assign(&msg.header.frame_id, "camera");
   rosidl_runtime_c__String__assign(&msg.format, "jpeg");
@@ -159,16 +200,6 @@ int main(int argc, char const * const * argv)
   // starts at 0 (an empty CompressedImage), so nothing publishes until the
   // first real JPEG frame is ready, rather than a bogus all-zero "frame".
   msg.data.size = 0;
-
-  printf("wasm32 rclc camera demo starting, publishing %dx%d JPEG CompressedImage on 'camera/image' via rmw_zenoh_pico\n",
-    IMG_WIDTH, IMG_HEIGHT);
-
-  while (true) {
-    rclc_executor_spin_some(&executor, RCL_MS_TO_NS(100));
-  }
-
-  RCCHECK(rcl_publisher_fini(&publisher, &node));
-  RCCHECK(rcl_node_fini(&node));
 
   return 0;
 }

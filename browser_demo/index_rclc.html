@@ -106,7 +106,17 @@
     if (zenohPort) {
       Module.stringToUTF8(zenohPort, Module.ccall('zenoh_get_connect_port_buf', 'number', [], []), 8);
     }
+    // main() only does the (network-independent) rclc_support_init() and
+    // returns -- rmw_zenoh_pico dropped pthreads+Asyncify project-wide, so
+    // there's no longer a blocking wait for main() to stay alive around.
+    // rclc_demo_tick() (talker_rclc.c) drives the rest from here: it
+    // retries node/publisher/timer/executor creation on every tick until
+    // the zenoh session is actually up (the first attempt always fails --
+    // z_open() can't block waiting for the WebSocket "open" event, which
+    // can only fire once this call returns control to the JS event loop),
+    // then switches to spinning the executor once ready.
     Module.callMain([]);
+    setInterval(() => Module.ccall('rclc_demo_tick', null, [], []), 100);
   };
 </script>
 <script src="talker_rclc.js"></script>

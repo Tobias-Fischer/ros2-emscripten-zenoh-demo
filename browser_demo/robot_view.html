@@ -144,7 +144,12 @@
     if (zenohPort) {
       Module.stringToUTF8(zenohPort, Module.ccall('zenoh_get_connect_port_buf', 'number', [], []), 8);
     }
+    // main() only does the (network-independent) rclc_support_init() and
+    // returns -- rclc_demo_tick() (robot_view.c) retries the rest on every
+    // tick until the zenoh session is up, then spins the executor. See
+    // talker_rclc.c / index_rclc.html for the full rationale.
     Module.callMain([]);
+    setInterval(() => Module.ccall('rclc_demo_tick', null, [], []), 100);
 
     const posePtr = Module.ccall('robot_view_get_pose_ptr', 'number', [], []);
     const xIndex = posePtr >> 3;

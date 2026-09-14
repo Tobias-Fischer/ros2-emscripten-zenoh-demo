@@ -10,21 +10,29 @@ command -v em++ >/dev/null || { echo "em++ not found — run this via 'pixi run 
 
 mkdir -p "$DEMO_DIR/out"
 
-# The emscripten-forge toolchain env's own activation script sets
-# EMCC_CFLAGS="... -sSUPPORT_LONGJMP=wasm -fwasm-exceptions" globally --
-# every em++ call gets native wasm exception-handling by default, which
-# crashes binaryen's Asyncify pass outright ("UNREACHABLE executed ...
-# Asyncify.cpp"), not just compiles slower. Override it here, dropping just
-# the exception-handling part (matching the toolchain's own base flags).
-export EMCC_CFLAGS="-O2 -g0 -fPIC -msimd128"
+# Used to override EMCC_CFLAGS here to drop the toolchain's default
+# -fwasm-exceptions (native wasm exception handling), because it used to
+# crash binaryen's Asyncify pass outright. Now that this build no longer
+# uses Asyncify at all (see rclc_demo_tick() in talker_rclc.c and
+# vinca commit f6c8903, "fix: drop Asyncify project-wide"), that override
+# is not just unneeded but actively wrong: librclc.so/librcl.so/etc. are
+# themselves now compiled with -fwasm-exceptions (the toolchain's real
+# default, restored by that same vinca commit), and a MAIN_MODULE built
+# with a *different* exception-handling model (-fexceptions, JS-based)
+# doesn't provide the wasm-EH runtime intrinsics
+# (__cpp_exception/_Unwind_CallPersonality/__wasm_lpad_context) those side
+# modules import -- confirmed via a real link failure, "undefined symbol:
+# __cpp_exception" et al. Leave EMCC_CFLAGS alone; use -fwasm-exceptions
+# below to match.
 
 # Not derived from any manifest or dependency-graph tool — found empirically,
 # the only real option given the architecture. -sMAIN_MODULE=2 means em++
 # only resolves symbols against .so files actually passed on the command
 # line (no implicit transitive pull-in the way a native linker's rpath/soname
-# resolution would give you); passing a .so this way *also* stages it next
-# to the output for the runtime's dylink loader to dlopen on demand (that's
-# why there's no separate `cp` step here, unlike build_rclpy.sh). Regenerate
+# resolution would give you). Despite that, it does *not* stage them next to
+# the output for the runtime's dylink loader to fetch -- confirmed via a real
+# 404 on librclc.so in a from-scratch `out/` dir -- so they still need the
+# same explicit `cp` build_teleop.sh and its siblings already use. Regenerate
 # by starting from just talker_rclc.c's direct includes (rclc, rmw_zenoh_pico)
 # and iterating: link/run, and for every "unable to find library -lX" from
 # wasm-ld or a 404 fetching X.so from the browser console, add
@@ -65,14 +73,13 @@ em++ \
   "${INCLUDE_FLAGS[@]}" \
   -sMAIN_MODULE=2 \
   -s ASSERTIONS=1 \
-  -fexceptions \
+  -fwasm-exceptions \
   -sWASM_BIGINT \
   -sINVOKE_RUN=0 \
+  -sEXIT_RUNTIME=0 \
   -sEXPORTED_RUNTIME_METHODS=ccall,stringToUTF8,callMain \
   -lwebsocket.js \
   -sSOCKET_DEBUG=1 \
-  -sASYNCIFY -s ASYNCIFY_STACK_SIZE=24576 \
-  -s ASYNCIFY_IMPORTS=rclc_node_init_default,rcl_node_init,rmw_create_node,z_open,z_session_drop,z_liveliness_declare_token,rclc_publisher_init_default,rcl_publisher_init,rmw_create_publisher,z_declare_publisher,rclc_executor_spin_some,rcl_wait,rmw_wait,zp_read,zp_send_keep_alive,z_sleep_ms,rcl_timer_call,rcl_publish,rmw_publish,z_publisher_put \
   -s ALLOW_MEMORY_GROWTH=1 \
   -L"$PREFIX/lib" \
   -L"$PREFIX/microcdr-2.0.2/lib" \
@@ -81,6 +88,7 @@ em++ \
   "${LIBS[@]}" \
   -o "$DEMO_DIR/out/talker_rclc.js"
 
+cp "${LIBS[@]}" "$DEMO_DIR/out/"
 cp "$DEMO_DIR/index_rclc.html" "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"
 
 echo "Build finished: $DEMO_DIR/out/talker_rclc.js / talker_rclc.wasm"

@@ -146,7 +146,12 @@
       if (k) { keys[k] = false; e.preventDefault(); writeState(); }
     });
     console.log('teleop: keyboard listener installed (WASD / arrow keys)');
+    // main() only does the (network-independent) rclc_support_init() and
+    // returns -- rclc_demo_tick() (teleop_rclc.c) retries the rest on every
+    // tick until the zenoh session is up, then spins the executor. See
+    // talker_rclc.c / index_rclc.html for the full rationale.
     Module.callMain([]);
+    setInterval(() => Module.ccall('rclc_demo_tick', null, [], []), 100);
   };
 </script>
 <script src="teleop_rclc.js"></script>
