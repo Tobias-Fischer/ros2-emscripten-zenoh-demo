@@ -68,9 +68,9 @@
       zenoh router: the wasm build connects to <code>127.0.0.1:7447</code> (a
       loopback address, so your browser will let an https page reach it even
       without a certificate). <b>Start the router below first</b>, then click
-      "Run demo" — without one reachable, the node still boots and attempts
-      the connection (visible in the console), but exits shortly after
-      rather than looping.
+      "Run demo" — without one reachable, the node still boots and keeps
+      retrying the connection (visible in the console) rather than
+      publishing, until one shows up.
     </p>
 
     <div class="setup-box">
