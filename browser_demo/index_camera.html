@@ -30,6 +30,23 @@
   <div class="panel">
     <canvas id="preview" width="160" height="120" style="width:100%; max-width:480px;"></canvas>
   </div>
+  <details class="panel" style="padding:12px 16px;">
+    <summary style="cursor:pointer; color:var(--text-dim);">Want to see these frames in a native ROS 2 viewer instead of this canvas?</summary>
+    <p style="margin:10px 0 0;"><code>pixi exec</code> installs a throwaway
+    <a href="https://robostack.github.io/" target="_blank" rel="noopener">RoboStack</a> ROS 2
+    rolling environment (with <code>rmw_zenoh_cpp</code> and <code>rqt_image_view</code>) and
+    points it at the same router this page is publishing to — run it while this page is open:</p>
+    <pre style="margin-top:10px;">pixi exec -c https://prefix.dev/robostack-rolling -c conda-forge --spec ros-rolling-ros-base --spec ros-rolling-rqt-image-view --spec ros-rolling-rmw-zenoh-cpp --spec pyside6 -- bash -c '
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_SESSION_CONFIG_URI=$(mktemp -t zenohcfg).json5
+echo "{mode:\"client\",connect:{endpoints:[\"ws/127.0.0.1:7447\"]},scouting:{multicast:{enabled:false}}}" > "$ZENOH_SESSION_CONFIG_URI"
+ros2 run rqt_image_view rqt_image_view /camera/image'</pre>
+    <p style="margin:10px 0 0;">A real Qt window opens showing the exact same frames as the canvas
+    above — decoded by a native, non-browser <code>rmw_zenoh_cpp</code> process, proof this is a
+    genuine <code>sensor_msgs/CompressedImage</code> stream and not just a canvas animation. Swap
+    the router address (<code>ws/127.0.0.1:7447</code> in the config line) if you started
+    <code>zenohd</code> somewhere else.</p>
+  </details>
   <div class="panel">
     <pre id="log"></pre>
   </div>

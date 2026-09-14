@@ -84,9 +84,11 @@
       <p style="margin:10px 0 0;">Once it's up, just click "Run demo" below — no page reload
       needed.</p>
       <details style="margin-top:12px;">
-        <summary style="cursor:pointer; color:var(--text-dim);">Testing from a phone instead? The GPS/tilt demos need a router your phone can actually reach</summary>
-        <p style="margin:10px 0 0;">Your phone's <code>127.0.0.1</code> is the phone itself, not your
-        desktop — so it needs your desktop's real address. And since this page is served over
+        <summary style="cursor:pointer; color:var(--text-dim);">Reaching the router from a different machine (phone, another laptop, a Pi, ...)</summary>
+        <p style="margin:10px 0 0;">That other machine's <code>127.0.0.1</code> is itself, not your
+        desktop — so it needs your desktop's real address. If the other machine is running a
+        <b>browser</b> (a phone for the GPS/tilt demos, or this same page open somewhere else):
+        since this page is served over
         <code>https://</code>, browsers block a plain <code>ws://</code> connection to anything but
         <code>127.0.0.1</code>/<code>localhost</code> (mixed content), so it needs TLS too.
         <a href="https://caddyserver.com/" target="_blank" rel="noopener">Caddy</a> (also on
@@ -107,6 +109,33 @@
         <code>https://&lt;that address&gt;/</code> directly on the phone once first and accept the
         browser's "not private" warning — after that, the demo page's <code>wss://</code> connection
         to the same address will work.</p>
+        <p style="margin:14px 0 0;">If the other machine is running a <b>native</b> process instead
+        of a browser — e.g. the <code>ros2 topic echo</code> verification below, or a real ROS 2
+        node — skip all of the above: mixed-content and TLS are browser-only rules, so a plain
+        listener on your LAN address is enough. Add it as a second listener on the same router
+        (same command as the very first box, just with an extra <code>-l</code>):</p>
+        <pre style="margin-top:10px;">pixi exec --with zenohd -c conda-forge zenohd -l ws/127.0.0.1:7447 -l tcp/0.0.0.0:7448 --no-multicast-scouting</pre>
+        <p style="margin:10px 0 0;">Then point the other machine's <code>connect.endpoints</code>
+        (in the <code>ZENOH_SESSION_CONFIG_URI</code> config below) at
+        <code>tcp/&lt;your desktop's LAN address&gt;:7448</code> instead of
+        <code>ws/127.0.0.1:7447</code> — no Caddy, no cert, one extra flag.</p>
+      </details>
+      <details style="margin-top:12px;">
+        <summary style="cursor:pointer; color:var(--text-dim);">Want independent proof this is really ROS 2, not just a browser animation? Verify with a native <code>ros2</code> CLI</summary>
+        <p style="margin:10px 0 0;">Same trick as the router above — <code>pixi exec</code> installs a
+        throwaway <a href="https://robostack.github.io/" target="_blank" rel="noopener">RoboStack</a>
+        ROS 2 rolling environment (with <code>rmw_zenoh_cpp</code>, the native peer to this demo's
+        <code>rmw_zenoh_pico</code>) and points it at the same router, no install left behind. Run
+        this <em>while</em> a demo above is running — it echoes the actual messages arriving from the
+        wasm32 node, decoded by a completely separate, native process that never touched a browser:</p>
+        <pre style="margin-top:10px;">pixi exec -c https://prefix.dev/robostack-rolling -c conda-forge --spec ros-rolling-ros-base --spec ros-rolling-rmw-zenoh-cpp -- bash -c '
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_SESSION_CONFIG_URI=$(mktemp -t zenohcfg).json5
+echo "{mode:\"client\",connect:{endpoints:[\"ws/127.0.0.1:7447\"]},scouting:{multicast:{enabled:false}}}" > "$ZENOH_SESSION_CONFIG_URI"
+ros2 topic echo /chatter'</pre>
+        <p style="margin:10px 0 0;">Swap <code>/chatter</code> for <code>/chatter_rclpy</code> to
+        listen to the rclpy talker instead. Both should print a fresh <code>data: 'Hello from
+        wasm32 ...'</code> line every second.</p>
       </details>
     </div>
 
