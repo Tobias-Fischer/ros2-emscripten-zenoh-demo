@@ -55,6 +55,15 @@
     // browsers require a matching response for.
     websocket: { subprotocol: null },
   };
+  Module.onRuntimeInitialized = () => {
+    // main() (rclpy_boot.c) runs rclpy.init() and defines tick(), but
+    // doesn't call it or block -- rclpy_demo_tick() retries Node()
+    // creation (and everything after) on every call until the zenoh
+    // session is actually up, then spin_once()s once ready. See
+    // talker_rclpy.py / index_rclc.html for the full rationale.
+    Module.callMain([]);
+    setInterval(() => Module.ccall('rclpy_demo_tick', null, [], []), 100);
+  };
 </script>
 <script src="rclpy_boot.js"></script>
 </body>
