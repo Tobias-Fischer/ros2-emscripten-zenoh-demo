@@ -55,7 +55,69 @@
     // browsers require a matching response for.
     websocket: { subprotocol: null },
   };
-  Module.onRuntimeInitialized = () => {
+  // rclpy_boot.c links no .so directly -- see build_rclpy.sh's own comment
+  // -- so nothing is eagerly preloaded by default the way build_rclc.sh's
+  // LIBS array is. Without this, the *first* dlopen() Python's own `import
+  // rclpy` chain does (for a real dependency like librcl_action.so) hits
+  // "file not found, and synchronous loading of external files is not
+  // available" -- the file is really there, but a plain synchronous
+  // dlopen() can't wait on an async fetch the way Module.loadDynamicLibrary
+  // can. Preload every plain (non-Python-extension) shared library up
+  // front instead, with retries for ROS2's circular/cross-package typesupport
+  // dependencies (discovered in arbitrary order) -- same approach as
+  // patches/patch_stock_xpython_js.mjs's "safe-eager-preload-with-retry"
+  // patch for jupyterlite-xeus's xpython.js. Once these are loaded,
+  // Python's own lazy dlopen() for the *.cpython-313-wasm32-emscripten.so
+  // extension modules themselves (rclpy's pybind11 module, numpy, ...)
+  // finds their dependencies already resident and just works.
+  async function preloadGlobalDylibs() {
+    const names = await (await fetch('rclpy_dylibs.json')).json();
+    let pending = names;
+    for (let pass = 0; pass < 6 && pending.length; pass++) {
+      const stillPending = [];
+      for (const name of pending) {
+        try {
+          // loadAsync: true is load-bearing -- without it this resolves
+          // via the *synchronous* path (readBinary()), which in a real
+          // browser either throws "synchronous loading ... not available"
+          // outright, or (worse, seen once here) actually succeeds for the
+          // first library and cascades into loading much of its own
+          // transitive closure synchronously and unawaited, so this same
+          // sequential loop's next iteration collides with a load already
+          // in flight ("Attempt to load 'X' twice before the first load
+          // completed").
+          //
+          // allowUndefined: true is also load-bearing, for a different
+          // reason: each library's own postInstantiation step calls
+          // reportUndefinedSymbols() *immediately*, at load time, unless
+          // this is set -- and since these 165 libraries are being loaded
+          // in plain filename order, not real dependency order, one that
+          // references a symbol from a sibling not loaded *yet* (arriving
+          // later in this same list) would otherwise throw right there.
+          // Worse, that throw leaves LDSO's own bookkeeping for this name
+          // permanently stuck at "loading" (nothing resets it on
+          // failure), so every later retry pass for that same name fails
+          // immediately with "twice before the first load completed"
+          // instead of actually retrying -- confirmed live. Deferring
+          // undefined-symbol resolution avoids tripping that failure
+          // mode at all; Python's own later dlopen()s for its real
+          // extension modules re-check symbol resolution at that point
+          // once every one of these is already resident.
+          await Module.loadDynamicLibrary(name, { global: true, nodelete: true, loadAsync: true, allowUndefined: true });
+        } catch (e) {
+          stillPending.push(name);
+        }
+      }
+      pending = stillPending;
+    }
+    if (pending.length) {
+      console.error('rclpy_boot: failed to eagerly preload:', pending);
+      logEl.textContent += '[err] failed to preload: ' + pending.join(', ') + '\n';
+    }
+  }
+
+  Module.onRuntimeInitialized = async () => {
+    await preloadGlobalDylibs();
     // main() (rclpy_boot.c) runs rclpy.init() and defines tick(), but
     // doesn't call it or block -- rclpy_demo_tick() retries Node()
     // creation (and everything after) on every call until the zenoh
