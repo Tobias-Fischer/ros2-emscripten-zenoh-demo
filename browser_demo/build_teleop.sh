@@ -20,6 +20,7 @@ LIBS=(
   "$PREFIX/lib/librcl.so"
   "$PREFIX/lib/librcl_yaml_param_parser.so"
   "$PREFIX/lib/librcl_logging_interface.so"
+  "$PREFIX/lib/librcl_logging_noop.so"
   "$PREFIX/lib/librmw.so"
   "$PREFIX/lib/librmw_zenoh_pico.so"
   "$PREFIX/lib/libzenohpico.so"
