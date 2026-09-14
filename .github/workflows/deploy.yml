@@ -22,7 +22,7 @@ on:
     inputs:
       ros_rolling_ref:
         description: "ros-rolling source to build (fork@branch)"
-        default: "Tobias-Fischer/ros-rolling@feature/emscripten-wasm32-zenoh-pico"
+        default: "Tobias-Fischer/ros-rolling@pico-update-tmp"
         required: false
       recipes_ref:
         description: "emscripten-forge-recipes source, for the cross-python_emscripten-wasm32 toolchain package ros-rolling's own build needs (fork@branch)"
