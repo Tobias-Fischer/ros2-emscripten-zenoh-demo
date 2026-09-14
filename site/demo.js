@@ -2,8 +2,57 @@
 // (non-MODULARIZE) glue script that reads a pre-existing global `Module`
 // object and starts running as soon as its <script> tag executes, so
 // "launching" a demo means: set up `Module` with print/printErr wired to
-// that card's console panel, then inject the glue script tag.
+// that card's console panel, then inject the glue script.
+//
+// Running both cards on one page (the whole point of having two cards)
+// used to crash outright. Root cause, confirmed live: neither
+// talker_rclc.js nor rclpy_boot.js wraps its own top-level code in an
+// IIFE -- both are one flat sequence of statements from `var Module=...`
+// straight through to the trailing `preInit();run();`, no wrapper -- so
+// loading both via plain `<script src>` tags runs them in the *same*
+// shared top-level scope. Two problems follow from that, not one:
+//
+//   1. Each declares a couple of `class` names directly at that top
+//      level (ExitStatus always; rclpy_boot.js also HandleAllocator, for
+//      its pybind11 handle table). `class`/`let`/`const` bindings live in
+//      the shared *script* scope, and JS does not allow redeclaring one
+//      of those, ever, even across separate <script> tags -- the second
+//      script throws a page-fatal `SyntaxError: Identifier 'ExitStatus'
+//      has already been declared` the instant it's parsed, and its
+//      entire top-level code fails to run at all (a syntax error aborts
+//      the whole file, not just the offending line).
+//   2. Renaming just the classes isn't enough on its own, though: dozens
+//      of *other* top-level `var`s (Module itself, plus internal runtime
+//      state like wasmMemory/wasmExports/HEAP8/...) are shared the same
+//      way -- `var` redeclaration doesn't throw, it silently reuses the
+//      same global property, so the second script's own initialization
+//      overwrites the first script's still-running internal state out
+//      from under it. This is what caused the first (already publishing)
+//      demo to start throwing wasm-level "unreachable" traps and calling
+//      the *other* card's tick function once the second card launched,
+//      even after the SyntaxError above was fixed on its own.
+//
+// Fixed by not using a plain `<script src>` (which always executes in
+// the shared page scope) at all: fetch each glue script's own text, wrap
+// the whole thing in an IIFE that takes `Module` as a parameter, and run
+// that via an inline <script> tag instead. This makes every one of the
+// script's own top-level `var`/`class`/`function` declarations local to
+// that one IIFE invocation -- no shared scope, no collision, regardless
+// of how many of these run at once. The parameter (not a `var Module=...`
+// inside the wrapped body) is what supplies each instance's own config:
+// the wrapped script's own `var Module=typeof Module!="undefined"?
+// Module:{}` line still runs exactly as written, but `Module` now refers
+// to the parameter, which is never "undefined", so it keeps the object
+// this file already prepared instead of the (former) global lookup.
 (function () {
+  let launchCounter = 0;
+
+  function isolateModule(scriptText, moduleConfig) {
+    const key = "__demoModuleConfig_" + launchCounter++;
+    window[key] = moduleConfig;
+    return `(function(Module){\n${scriptText}\n})(window[${JSON.stringify(key)}]);`;
+  }
+
   const DEMOS = {
     // Both talker_rclc.js and rclpy_boot.js are linked with -sINVOKE_RUN=0
     // (see build_rclc.sh / build_rclpy.sh) so a standalone page can set the
@@ -41,20 +90,59 @@
     rclpy: {
       script: "v/%%ASSET_VERSION%%/assets/rclpy_boot.js",
       needsCallMain: true,
-      // No tickFn here (yet) -- unlike rclc_demo_tick(), calling
-      // rclpy_demo_tick() repeatedly on this card hits a real, separate
-      // bug: "NameError: name 'tick' is not defined" from the second call
-      // on, even though rclpy_boot.c's main() does define a Python-level
-      // tick() during its own initial run. Something about how that
-      // function's global scope is (or isn't) preserved across repeated
-      // re-entry from C isn't right yet -- confirmed live, not something
-      // this file can work around. needsCallMain alone is still a real,
-      // independent fix: without it main() (and rclpy.init()) never ran
-      // at all on this card. Leave tickFn off until the Python-side bug
-      // is actually root-caused, rather than shipping a card that error-
-      // spams instead of just sitting idle.
+      tickFn: "rclpy_demo_tick",
+      // rclpy_boot.c links no .so directly (see build_rclpy.sh's own
+      // comment) -- Python's own `import rclpy` chain dlopen()s its real
+      // dependencies (librcl_action.so and ~164 others) on demand instead.
+      // A plain synchronous dlopen() can't wait on the async fetch that
+      // needs, so without eagerly preloading them all first via
+      // Module.loadDynamicLibrary() (same approach as
+      // patches/patch_stock_xpython_js.mjs's "safe-eager-preload-with-
+      // retry" patch for jupyterlite-xeus), `import rclpy` throws
+      // "file not found, and synchronous loading of external files is not
+      // available" on its very first real dependency, main()'s own exec()
+      // of talker_rclpy.py aborts right there -- before it ever reaches
+      // `def tick():` -- and every later rclpy_demo_tick() call then
+      // fails with "NameError: name 'tick' is not defined", which looks
+      // like a Python-scoping bug but isn't one: tick() was simply never
+      // defined in the first place. See index_rclpy.html's own
+      // preloadGlobalDylibs() for the original version of this fix; this
+      // is the same thing, driven from this card's own launch() instead.
+      dylibsJson: "v/%%ASSET_VERSION%%/assets/rclpy_dylibs.json",
     },
   };
+
+  // See the rclpy DEMOS entry's own comment above for why this exists.
+  // Ported from index_rclpy.html's preloadGlobalDylibs() -- same
+  // reasoning, same retry structure, just parameterized on `dylibsJsonUrl`
+  // instead of a fixed relative path.
+  async function preloadGlobalDylibs(Module, dylibsJsonUrl, consoleEl) {
+    const names = await (await fetch(dylibsJsonUrl)).json();
+    let pending = names;
+    for (let pass = 0; pass < 6 && pending.length; pass++) {
+      const stillPending = [];
+      for (const name of pending) {
+        try {
+          // loadAsync: true is load-bearing -- without it this resolves via
+          // the *synchronous* path, which either throws outright or (worse)
+          // succeeds once and cascades into loading much of its own
+          // transitive closure synchronously and unawaited, colliding with
+          // this same loop's next iteration. allowUndefined: true is also
+          // load-bearing: these libraries load in plain filename order, not
+          // dependency order, so one referencing a symbol from a sibling
+          // that hasn't loaded yet would otherwise throw immediately and
+          // leave that name stuck "loading" for every later retry pass too.
+          await Module.loadDynamicLibrary(name, { global: true, nodelete: true, loadAsync: true, allowUndefined: true });
+        } catch (e) {
+          stillPending.push(name);
+        }
+      }
+      pending = stillPending;
+    }
+    if (pending.length) {
+      appendLine(consoleEl, "[err] failed to preload: " + pending.join(", "), true);
+    }
+  }
 
   function setStatus(card, state, label) {
     const el = card.querySelector(".status");
@@ -72,43 +160,34 @@
     consoleEl.scrollTop = consoleEl.scrollHeight;
   }
 
-  function launch(name) {
+  async function launch(name) {
     const card = document.querySelector(`[data-demo="${name}"]`);
     const consoleEl = card.querySelector(".console");
     const button = card.querySelector(".run-btn");
     const cfg = DEMOS[name];
 
-    // Running both demo cards at once loads two separate top-level
-    // Emscripten MAIN_MODULE programs into the same page simultaneously --
-    // confirmed live to be genuinely unstable (one crashes with a wasm
-    // "unreachable" trap once the other starts loading its own module),
-    // unrelated to anything this file controls. Disable every "Run demo"
-    // button, not just this card's own, so a visitor can't stumble into
-    // that combination; reload the page to try a different demo.
-    document.querySelectorAll(".run-btn").forEach((btn) => {
-      btn.disabled = true;
-      btn.textContent =
-        btn === button
-          ? "Running (reload page to run again)"
-          : "Reload page to try this demo instead";
-    });
+    button.disabled = true;
+    button.textContent = "Running (reload page to run again)";
     setStatus(card, "loading", "downloading + compiling wasm…");
     appendLine(consoleEl, `$ fetching ${cfg.script.split("/").pop().replace(".js", ".wasm")}…`);
 
+    let rawText;
+    try {
+      rawText = await (await fetch(cfg.script)).text();
+    } catch (e) {
+      setStatus(card, "error", "failed to load " + cfg.script);
+      appendLine(consoleEl, "[error] could not load " + cfg.script, true);
+      return;
+    }
+
     let sawFirstOutput = false;
 
-    // Captured locally (not read back via `window.Module` inside the
-    // callbacks below) because both cards share that one global slot --
-    // launching the second demo overwrites it while the first demo's own
-    // tick setInterval is still running. Without this, that stale
-    // interval keeps firing against whatever `window.Module` now points
-    // to (the *other* card's, possibly still-uninitialized, Module),
-    // throwing "ccall is not a function" every 100ms forever. Emscripten's
-    // classic (non-MODULARIZE) glue reads the global once at script-load
-    // time and mutates this exact object in place from then on, so this
-    // reference stays valid for this card's own instance regardless of
-    // what the global gets reassigned to later.
-    const Module = (window.Module = {
+    // A plain object, local to this launch() call -- not `window.Module`.
+    // See the top-of-file comment for why that matters: each card's glue
+    // script runs inside its own isolateModule() IIFE below, receiving
+    // this object as its own private `Module` parameter, so two cards
+    // running at once never share (or race on) any global state at all.
+    const Module = {
       print: (t) => {
         if (!sawFirstOutput) {
           sawFirstOutput = true;
@@ -135,10 +214,13 @@
           appendLine(consoleEl, "[exited " + code + "]", true);
         }
       },
-    });
+    };
 
     if (cfg.needsCallMain) {
-      Module.onRuntimeInitialized = () => {
+      Module.onRuntimeInitialized = async () => {
+        if (cfg.dylibsJson) {
+          await preloadGlobalDylibs(Module, cfg.dylibsJson, consoleEl);
+        }
         Module.callMain([]);
         if (cfg.tickFn) {
           setInterval(() => Module.ccall(cfg.tickFn, null, [], []), 100);
@@ -147,11 +229,7 @@
     }
 
     const s = document.createElement("script");
-    s.src = cfg.script;
-    s.onerror = () => {
-      setStatus(card, "error", "failed to load " + cfg.script);
-      appendLine(consoleEl, "[error] could not load " + cfg.script, true);
-    };
+    s.textContent = isolateModule(rawText, Module);
     document.body.appendChild(s);
   }
 
