@@ -187,7 +187,21 @@
     // script runs inside its own isolateModule() IIFE below, receiving
     // this object as its own private `Module` parameter, so two cards
     // running at once never share (or race on) any global state at all.
+    const assetDir = cfg.script.slice(0, cfg.script.lastIndexOf("/") + 1);
     const Module = {
+      // Emscripten's glue code normally derives its own asset directory
+      // (for the .wasm file, and anything else it fetches by a bare
+      // filename) from document.currentScript.src -- which only exists
+      // for a `<script src>`-loaded file. Running the glue as an inline
+      // script (see isolateModule() below, and the top-of-file comment
+      // for why) leaves that empty, and its own fallback resolves
+      // against the *page's* URL instead of this asset's -- confirmed
+      // live as "wasm streaming compile failed ... HTTP status code is
+      // not ok", fetching e.g. talker_rclc.wasm from the site root
+      // instead of v/<sha>/assets/. Overriding locateFile sidesteps the
+      // guessing entirely: every bare filename the glue code asks for
+      // resolves relative to this card's own known script URL.
+      locateFile: (path) => assetDir + path,
       print: (t) => {
         if (!sawFirstOutput) {
           sawFirstOutput = true;
