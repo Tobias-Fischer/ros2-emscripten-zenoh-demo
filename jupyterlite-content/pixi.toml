@@ -51,4 +51,10 @@ jupyterlite-xeus = "==5.1.0"
 # config directly, or file an upstream jupyterlite/xeus issue with this
 # repro (the identity-check instrumentation above is the fastest way to
 # confirm/deny the same root cause in a fresh build).
-build = { cmd = "jupyter lite init && jupyter lite build --contents content --XeusAddon.prefix=../demo_env --XeusAddon.default_channels='[\"https://repo.prefix.dev/emscripten-forge-4x\",\"https://repo.prefix.dev/conda-forge\"]'" }
+# The trailing flatten_runtime_only_plugins.py call fixes a real 404 on
+# librcl_logging_noop.so in the live deployed kernel -- see that script's
+# own header comment for the full explanation (jupyterlite-xeus's eager
+# preload only discovers packages reachable via the dependency graph,
+# which this one -- an env-var-selected runtime plugin, not a declared
+# dependency of anything -- never is).
+build = { cmd = "jupyter lite init && jupyter lite build --contents content --XeusAddon.prefix=../demo_env --XeusAddon.default_channels='[\"https://repo.prefix.dev/emscripten-forge-4x\",\"https://repo.prefix.dev/conda-forge\"]' && python3 ../.github/scripts/flatten_runtime_only_plugins.py ../demo_env _output/xeus/demo_env/bin" }
