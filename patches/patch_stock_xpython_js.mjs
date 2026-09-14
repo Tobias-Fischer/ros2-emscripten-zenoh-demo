@@ -80,6 +80,28 @@
 //      `/microcdr-2.0.2/lib/libmicrocdr.so.2.0.2` instead of
 //      `/lib/libmicrocdr.so.2.0.2`).
 //
+//   5. Emscripten's SOCKFS websocket_sock_ops.createPeer() (what
+//      zenoh-pico's emscripten BSD-socket transport rides on) defaults to
+//      requesting the "binary" WebSocket subprotocol whenever the host
+//      module doesn't explicitly configure `Module["websocket"]` --
+//      exactly the case here, since jupyterlite-xeus's own extension
+//      bundle instantiates this kernel without ever setting that option
+//      (confirmed: no "websocket"/"subprotocol" string anywhere in the
+//      built @jupyterlite/xeus-extension chunks). zenohd's own `-l ws/...`
+//      listener doesn't support/accept that subprotocol and closes the
+//      handshake immediately with code 1006 -- confirmed live with a raw
+//      `new WebSocket(url, "binary")` vs `new WebSocket(url)` against a
+//      real zenohd: the former closes in ~3ms every time, the latter opens
+//      normally. Since this build's only outbound socket traffic is ever
+//      zenoh-pico's, there's no legitimate case where requesting "binary"
+//      is wanted -- so the default itself is changed to request no
+//      subprotocol at all (the same "null" sentinel this code already
+//      recognizes for an explicit `Module.websocket.subprotocol === null`)
+//      rather than requiring every embedder to remember to opt out.
+//      Without this, Node()/rclpy.init() retry forever (or until their own
+//      attempt budget runs out) even with a real, reachable zenohd router
+//      running -- indistinguishable from the router simply not existing.
+//
 // Status as of 2026-09-13 (autonomous overnight session): with these
 // patches, `import rclpy` and `from rclpy.node import Node` both succeed
 // against the REAL, unmodified stock xeus-python binary bootstrapped with
@@ -164,6 +186,15 @@ applyPatch(
     console.log('NOTE: patch 4 (readBinary FS-search fallback) is intentionally NOT auto-applied here, since it must be layered on top of a project/environment-specific Node readAsync/readBinary shim (browser deployments do not need it at all -- real browsers support synchronous XMLHttpRequest for this exact fallback path). See AGENTS.md for the exact snippet to splice into whatever custom readBinary the deployment environment defines.');
   }
 }
+
+// --- Patch 5: default the SOCKFS WebSocket subprotocol to "none" instead
+// of "binary" -- zenohd's `ws/` listener rejects the "binary" subprotocol
+// outright (code 1006), and this project never wants it requested. ---
+applyPatch(
+  'default-websocket-subprotocol-to-none',
+  'var subProtocols="binary";var opts=undefined;',
+  'var subProtocols="null";var opts=undefined;'
+);
 
 writeFileSync(file, content);
 console.log(`\nDone. Patched file written to: ${file}`);
