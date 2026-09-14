@@ -79,8 +79,14 @@
       <a href="https://conda-forge.org/" target="_blank" rel="noopener">conda-forge</a> package —
       <a href="https://pixi.sh/" target="_blank" rel="noopener">pixi</a>'s <code>exec</code>
       installs it into a throwaway environment and runs it in one line, no ROS
-      or project directory needed (just <a href="https://pixi.sh/latest/#installation" target="_blank" rel="noopener">pixi itself</a>):</p>
-      <pre>pixi exec --with zenohd -c conda-forge zenohd -l ws/127.0.0.1:7447 --no-multicast-scouting</pre>
+      or project directory needed (just <a href="https://pixi.sh/latest/#installation" target="_blank" rel="noopener">pixi itself</a>).
+      This also enables the router's REST admin API, which the "Live ROS graph" panel below
+      uses to show what's actually on the graph in real time — entirely optional, the demos
+      work fine without it too:</p>
+      <pre>pixi exec --with zenohd --with zenoh-plugin-rest -c conda-forge -- bash -c '
+ext=so; [ "$(uname)" = "Darwin" ] && ext=dylib
+zenohd -l ws/127.0.0.1:7447 --no-multicast-scouting \
+  -P "rest:$(dirname $(which zenohd))/../lib/libzenoh_plugin_rest.$ext" --rest-http-port 8000'</pre>
       <p style="margin:10px 0 0;">Once it's up, just click "Run demo" below — no page reload
       needed.</p>
       <details style="margin-top:12px;">
@@ -167,6 +173,30 @@ ros2 topic echo /chatter'</pre>
         <span class="status idle"><span class="led"></span><span class="label">idle</span></span>
       </div>
       <pre class="console"><span class="placeholder">Console output will appear here once you click "Run demo" (first download is ~57 MB).</span></pre>
+    </div>
+
+    <div class="demo-card" id="graph-panel">
+      <div class="demo-head">
+        <div>
+          <h4>Live ROS graph</h4>
+          <p>Polls the router's REST admin space directly from this page — no wasm involved —
+          to show every topic actually on the graph right now: the two demos above, a native
+          <code>ros2 topic echo</code>/<code>rqt_image_view</code> process (see the
+          verification boxes further down), or anything else pointed at the same router.</p>
+        </div>
+      </div>
+      <div class="demo-controls">
+        <span class="status idle" id="graph-status"><span class="led"></span><span class="label">waiting for router…</span></span>
+        <span id="graph-sessions" style="font-family:var(--mono); font-size:12.5px; color:var(--text-dim);"></span>
+      </div>
+      <div class="table-scroll" style="margin:0 24px 20px;">
+        <table class="sources-table">
+          <thead><tr><th>Topic</th><th>Type</th><th>Pub</th><th>Sub</th></tr></thead>
+          <tbody id="graph-tbody"></tbody>
+        </table>
+        <p id="graph-empty" style="margin:10px 0 0; color:var(--text-dim); font-size:13.5px;">No topics yet —
+        start the router with its REST plugin enabled (see the one-liner above) and click a "Run demo" button.</p>
+      </div>
     </div>
 
     <p class="section-lede">
@@ -279,5 +309,6 @@ ros2 topic echo /chatter'</pre>
 </div>
 
 <script src="v/%%ASSET_VERSION%%/demo.js"></script>
+<script src="v/%%ASSET_VERSION%%/graph-panel.js"></script>
 </body>
 </html>

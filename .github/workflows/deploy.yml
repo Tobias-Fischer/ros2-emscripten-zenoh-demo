@@ -258,6 +258,7 @@ jobs:
           sed "s/%%ASSET_VERSION%%/$ASSET_VERSION/g" demo-repo/site/index.html > _pages/index.html
           cp demo-repo/site/coi-serviceworker.js _pages/
           sed "s/%%ASSET_VERSION%%/$ASSET_VERSION/g" demo-repo/site/demo.js > "_pages/v/$ASSET_VERSION/demo.js"
+          cp demo-repo/site/graph-panel.js "_pages/v/$ASSET_VERSION/graph-panel.js"
           cp demo-repo/site/style.css "_pages/v/$ASSET_VERSION/style.css"
           find demo-repo/browser_demo/out -maxdepth 1 -type f ! -name '*.html' -exec cp {} "_pages/v/$ASSET_VERSION/assets/" \;
           cp -r demo-repo/jupyterlite-content/_output "_pages/v/$ASSET_VERSION/jupyterlite"
