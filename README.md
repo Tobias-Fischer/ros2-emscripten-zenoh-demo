@@ -141,10 +141,11 @@ github-pages and the repo's Deployments tab):
   `browser_demo/pixi.toml` — see [`docs/demo_env.md`](docs/demo_env.md)
   for the full pipeline (the `ros-rolling` emscripten-wasm32 recipe
   closure, assembling `demo_env/`, then linking).
-- A small JupyterLite deployment built from the one notebook in
-  [`jupyterlite-content/`](jupyterlite-content/demo.ipynb) — plain HTTP
-  against `zenohd`'s REST plugin, no compiled wasm required, much lighter
-  than the two talkers above.
+- A JupyterLite deployment built from the one notebook in
+  [`jupyterlite-content/`](jupyterlite-content/demo.ipynb) — a genuine
+  `xeus-python` kernel running the same compiled `rclpy` + `rmw_zenoh_pico`
+  wasm build as the rclpy talker above, over the same WebSocket transport
+  (not a lighter-weight REST/HTTP path — it's the full stack, just editable).
 
 A cold run rebuilds everything from source (the full ~230-package `ros-rolling`
 closure included) and can take a couple of hours; `actions/cache` keyed on
