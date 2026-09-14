@@ -248,6 +248,7 @@ ros2 topic echo /chatter'</pre>
       <li><code>rmw_zenoh_pico</code> doesn't support publisher/subscriber QoS event callbacks yet — the demo nodes disable them explicitly rather than hitting an unhandled error.</li>
       <li>Its <code>TypeDescriptionService</code> isn't implemented either (would hang, not error) — disabled in the same way; parameter and rosout services are switched off at node construction for the same reason.</li>
       <li>The rclc-based demos' zenoh connect address is runtime-configurable now (a "zenoh router" field on each page, or <code>?zenoh_host=&amp;zenoh_port=&amp;zenoh_tls=1</code> in the URL) via <code>rmw_zenoh_pico_set_unicast()</code>, with a <code>wss://</code> option for reaching a router on a different device (see the setup box's phone section) — but the rclpy talker above still only connects to the compiled-in default (<code>127.0.0.1:7447</code>).</li>
+      <li>The literal blocking <code>rclpy.spin(node)</code> can't work in this build — it's a synchronous loop with no yield point, and with no pthreads and no Asyncify there's no way to let the browser's event loop run a WebSocket callback while a single synchronous call is still on the stack, so it would just freeze the tab forever. The <a href="v/%%ASSET_VERSION%%/jupyterlite/notebooks/index.html?path=demo.ipynb">notebook</a> below uses a <code>spin_async()</code> helper instead — the same non-blocking <code>spin_once()</code> every demo here already uses, looped behind <code>await asyncio.sleep()</code> as a background task.</li>
     </ul>
   </section>
 
