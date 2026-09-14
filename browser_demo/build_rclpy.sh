@@ -124,9 +124,14 @@ node "$DEMO_DIR/../patches/patch_rclpy_boot_js.mjs" "$DEMO_DIR/out/rclpy_boot.js
 # Emscripten's MAIN_MODULE loader resolves each "needed" shared library by
 # basename, relative to the deployed .js file's own directory -- not via the
 # -L paths used at link time above. Every dylink dependency has to sit flat
-# next to rclpy_boot.js, regardless of where it lived in demo_env/.
-cp "$PREFIX"/lib/*.so "$DEMO_DIR/out/"
-cp -L "$PREFIX"/microcdr-2.0.2/lib/*.so* "$DEMO_DIR/out/"
+# next to rclpy_boot.js, regardless of where it lived in demo_env/. *.so*
+# (not just *.so): microcdr installs versioned SONAMEs (libmicrocdr.so.2.0,
+# .so.2.0.2) alongside the plain .so, unlike every other package here --
+# and those are themselves a *.so -> *.so.2.0 -> *.so.2.0.2 symlink chain,
+# not independent files, so -L (dereference) turns each into a real,
+# independently-fetchable copy instead of a symlink some deploy pipeline
+# (GitHub Pages' own upload-artifact step included) might not preserve.
+cp -L "$PREFIX"/lib/*.so* "$DEMO_DIR/out/"
 find "$SP" -iname "*.so" -exec cp {} "$DEMO_DIR/out/" \;
 cp "$DEMO_DIR/index_rclpy.html" "$DEMO_DIR/out/index_rclpy.html"
 cp "$DEMO_DIR/demo-page.css" "$DEMO_DIR/out/"

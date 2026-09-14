@@ -29,7 +29,7 @@ LIBS=(
   "$PREFIX/lib/libgeometry_msgs__rosidl_typesupport_introspection_c.so"
   "$PREFIX/lib/libgeometry_msgs__rosidl_typesupport_microxrcedds_c.so"
   "$PREFIX/lib/libbuiltin_interfaces__rosidl_typesupport_microxrcedds_c.so"
-  "$PREFIX/microcdr-2.0.2/lib/libmicrocdr.so"
+  "$PREFIX/lib/libmicrocdr.so"
 )
 
 INCLUDE_FLAGS=(-I"$PREFIX/include")
@@ -53,7 +53,6 @@ em++ \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s MAXIMUM_MEMORY=1024MB \
   -L"$PREFIX/lib" \
-  -L"$PREFIX/microcdr-2.0.2/lib" \
   "$DEMO_DIR/imu_rclc.c" \
   "$DEMO_DIR/wasm_link_stubs.c" \
   "${LIBS[@]}" \
