@@ -100,26 +100,26 @@
   const WIDTH = 160;
   const HEIGHT = 120;
 
-  // Same shared-memory pattern as index_teleop.html / index_gps.html:
-  // main() runs on a pthread Web Worker with no DOM/getUserMedia access,
-  // so all the frame capture -- and, now, the JPEG encoding itself, via
-  // canvas.toBlob('image/jpeg') -- lives here on the page's real main
-  // thread, writing the compressed bytes directly into wasm linear memory
-  // at the address camera_get_frame_buffer_ptr() exports. See
-  // camera_rclc.c: canvas.toBlob() is a browser-native (typically
-  // hardware-assisted) encoder, so this is a lot cheaper than it sounds --
-  // a raw RGBA->RGB8 copy of the same frame was actually *more* JS work
-  // than this, for a fraction of the network bandwidth.
+  // Same pattern as index_teleop.html / index_gps.html: wasm code has no
+  // getUserMedia/DOM access at all, so all the frame capture -- and, now,
+  // the JPEG encoding itself, via canvas.toBlob('image/jpeg') -- lives
+  // here in plain JS instead of C/EM_JS code, writing the compressed
+  // bytes directly into wasm linear memory at the address
+  // camera_get_frame_buffer_ptr() exports. See camera_rclc.c:
+  // canvas.toBlob() is a browser-native (typically hardware-assisted)
+  // encoder, so this is a lot cheaper than it sounds -- a raw RGBA->RGB8
+  // copy of the same frame was actually *more* JS work than this, for a
+  // fraction of the network bandwidth.
   //
   // Unlike teleop/gps's state structs (statically allocated -- their
   // address is valid the instant the wasm module is instantiated), the
-  // image buffer is malloc'd by main() itself once it actually runs on
-  // its worker thread, which -sPROXY_TO_PTHREAD=1 makes asynchronous
-  // relative to onRuntimeInitialized. Calling
-  // camera_get_frame_buffer_ptr() too early gets back a null pointer,
-  // and writing "pixels" starting at address 0 crashes the whole runtime
-  // with "memory access out of bounds" -- so poll until main() has
-  // actually allocated it.
+  // image buffer is malloc'd by main() itself, which only actually runs
+  // once callMain() below is called (INVOKE_RUN=0 -- see build_camera.sh).
+  // Calling camera_get_frame_buffer_ptr() too early gets back a null
+  // pointer, and writing "pixels" starting at address 0 crashes the whole
+  // runtime with "memory access out of bounds" -- so poll until main()
+  // has actually allocated it, rather than assuming callMain() returning
+  // means every side effect inside main() has already landed.
   function pollForFrameBufferPtr() {
     return new Promise((resolve) => {
       const tryOnce = () => {

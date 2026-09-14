@@ -58,7 +58,9 @@ also documented in the main [README](../README.md#known-limitations).
   Applied with `patch -p1` against the `xeus_python_shell` package's own
   `site-packages` directory, same as the other two patches above.
 
-The custom pthreads CPython + numpy patches live in a separate repo, since
-they patch a different project's recipes: see
-[Tobias-Fischer/emscripten-forge-recipes](https://github.com/Tobias-Fischer/emscripten-forge-recipes/tree/wasm-pthreads-python-numpy-orphan)
-(branch `wasm-pthreads-python-numpy-orphan`).
+`python`/`numpy` themselves are stock, unmodified `emscripten-forge`
+builds — no custom pthreads build needed anymore (see the main
+[README](../README.md#what-it-took-to-get-rclpy-working)). The
+`wasm-pthreads-python-numpy-orphan` branch this used to point at is
+historical, from before `rmw_wait()` was rewritten to not need real
+threads at all.

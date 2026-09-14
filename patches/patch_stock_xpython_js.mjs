@@ -107,17 +107,19 @@
 // against the REAL, unmodified stock xeus-python binary bootstrapped with
 // this project's real, full (145-package) ROS2 kernel environment -- the
 // core "null function" crash this whole investigation chased is completely
-// avoided. `rclpy.init()` currently still fails with a NEW, separate,
-// much narrower problem: `_rclpy_pybind11...so` itself directly contains a
-// real `std::thread` construction (confirmed via `strings`, not a
-// zenoh-pico/rmw issue -- zenoh-pico is correctly built with
-// Z_FEATURE_MULTI_THREAD=0) that throws "thread constructor failed:
-// Resource temporarily unavailable" in a build with no real pthreads.
-// This is a new, well-scoped follow-up task (find and work around/patch
-// whatever internal rclpy C++ code path spawns this thread -- possibly
-// related to graph-change tracking or a wait-set implementation detail),
-// NOT part of the Emscripten-toolchain mystery this script's other fixes
-// address.
+// avoided.
+//
+// UPDATE (2026-09-14): the `rclpy.init()` "thread constructor failed:
+// Resource temporarily unavailable" issue this note used to describe here
+// no longer reproduces -- rclpy.init(), Node() construction (with the
+// expected first-attempt z_open() retry), publisher/subscriber creation,
+// and a clean rclpy.shutdown() have all run repeatedly against this exact
+// patched kernel with no std::thread-related failure at all. Left
+// unclear exactly which fix along the way resolved it (plausibly the same
+// Z_FEATURE_MULTI_THREAD propagation / rmw_wait cooperative-polling work
+// that removed every other real-thread dependency in this project -- see
+// the main README's "What it took to get rclpy working"); flag here in
+// case it resurfaces, but don't treat it as a known-open problem.
 //
 // Usage: node patch_stock_xpython_js.mjs <path-to-stock-xpython.js>
 // Edits the file in place. Idempotent-ish (re-running on an

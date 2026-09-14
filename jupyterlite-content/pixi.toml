@@ -20,33 +20,43 @@ jupyterlite-xeus = "==5.1.0"
 # ../demo_env_build) rather than having jupyterlite-xeus solve its own
 # emscripten-wasm32 environment from scratch: demo_env already has
 # xeus-python installed alongside the real rclpy/rmw_zenoh_pico/zenoh-pico
-# stack (see demo_env_build/pixi.toml.in), pthreads-python and all, so the
-# notebook kernel and the browser_demo talkers share one built environment
-# instead of resolving/downloading the same closure twice.
+# stack (see demo_env_build/pixi.toml.in) -- a completely stock, no-pthreads
+# xeus-python build (see ../README.md#what-it-took-to-get-rclpy-working) --
+# so the notebook kernel and the browser_demo talkers share one built
+# environment instead of resolving/downloading the same closure twice.
 #
-# KNOWN BUG (unresolved, 2026-09-12): the xpython kernel never shows up in
-# the JupyterLite launcher/kernel-picker, even though the build completes
-# cleanly and the kernel's files (kernels.json, kernel.json, the packaged
-# .so's) all fetch successfully at runtime. Traced with injected
-# instrumentation directly into the built @jupyterlite/xeus-extension
-# bundle: the registration plugin's activate() runs, kernels.json fetches
-# correctly, and kernelspecs.register(...) is called without error -- but
-# a direct identity check (`t === app.serviceManager.kernelspecs` inside
-# the plugin) returns false. The IKernelSpecs instance the plugin receives
-# is a *different object* than the one JupyterLab's UI actually reads
-# from -- a classic webpack Module Federation shared-singleton mismatch.
-# Confirmed identical on jupyterlite-xeus 5.0.0 (conda-forge) and 5.1.0
-# (PyPI), so it isn't a simple version-skew bug with a known fix. Also
-# confirmed NOT caused by --XeusAddon.prefix pointing at a symlink or a
-# non-conda-managed prefix: demo_env is already a real pixi-managed
-# environment (a symlink to demo_env_build/.pixi/envs/default, which has
-# a full conda-meta db), and pointing directly at the resolved path made
-# no difference. The alternative --XeusAddon.environment_file build path
-# was also tried, but jupyterlite-xeus's own micromamba wrapper doesn't
-# expose a channel-priority setting, and ros2-rclpy's pyyaml dependency
-# needs channel-priority disabled to solve against this project's local
-# channel -- neither a MAMBARC env var nor a project-local .mambarc were
-# picked up by the subprocess, so that path never got far enough to test.
+# The kernel itself is confirmed working end-to-end (Node() construction
+# with retry, publisher/subscriber, and a clean rclpy.shutdown() all run
+# real cells through it -- see demo.ipynb and its own git history), so this
+# is NOT the "kernel never actually runs" state the note below originally
+# described. What's still unresolved as of 2026-09-14: the JupyterLite
+# launcher/kernel-picker UI can still show only "No Kernel" in at least
+# some browser/automation contexts, even though the exact same build works
+# when the Jupyter protocol is driven directly (bypassing the picker --
+# see ../scratch/jupyterlite_env_test/browser_test.html) or, per informal
+# reports, in normal interactive use. The original root-cause trace below
+# (from 2026-09-12, before the kernel itself was confirmed working) is kept
+# for whoever picks this up, but treat it as a lead on the picker-UI bug
+# specifically, not a description of the kernel's current state.
+#
+# Original trace: the registration plugin's activate() runs, kernels.json
+# fetches correctly, and kernelspecs.register(...) is called without error
+# -- but a direct identity check (`t === app.serviceManager.kernelspecs`
+# inside the plugin) returns false. The IKernelSpecs instance the plugin
+# receives is a *different object* than the one JupyterLab's UI actually
+# reads from -- a classic webpack Module Federation shared-singleton
+# mismatch. Confirmed identical on jupyterlite-xeus 5.0.0 (conda-forge) and
+# 5.1.0 (PyPI), so it isn't a simple version-skew bug with a known fix.
+# Also confirmed NOT caused by --XeusAddon.prefix pointing at a symlink or
+# a non-conda-managed prefix: demo_env is already a real pixi-managed
+# environment (a symlink to demo_env_build/.pixi/envs/default, which has a
+# full conda-meta db), and pointing directly at the resolved path made no
+# difference. The alternative --XeusAddon.environment_file build path was
+# also tried, but jupyterlite-xeus's own micromamba wrapper doesn't expose
+# a channel-priority setting, and ros2-rclpy's pyyaml dependency needs
+# channel-priority disabled to solve against this project's local channel
+# -- neither a MAMBARC env var nor a project-local .mambarc were picked up
+# by the subprocess, so that path never got far enough to test.
 # Next step, if resumed: either patch the built webpack shared-scope
 # config directly, or file an upstream jupyterlite/xeus issue with this
 # repro (the identity-check instrumentation above is the fastest way to

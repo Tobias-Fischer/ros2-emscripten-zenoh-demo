@@ -99,14 +99,13 @@
   // of a plain zenohd.
   Module.websocket.url = zenohTls ? 'wss://' : 'ws://';
 
-  // main() runs on a pthread Web Worker (-sPROXY_TO_PTHREAD=1), which has
-  // no window/DOM access -- so the keyboard listener lives here, in plain
-  // JS on the page's real main thread, instead of in C/EM_JS code. It
-  // writes directly into wasm linear memory (a SharedArrayBuffer in this
-  // pthreads build) at the address teleop_get_state_ptr() returns; the
-  // worker-side timer callback reads the same bytes with a plain C read,
-  // no cross-thread call needed on that hot (10 Hz) path. See
-  // teleop_rclc.c for the C side of this.
+  // wasm code has no window/DOM access at all -- so the keyboard listener
+  // lives here, in plain JS, instead of in C/EM_JS code. It writes
+  // directly into wasm linear memory at the address
+  // teleop_get_state_ptr() returns; the setInterval-driven tick below
+  // (same single JS thread, no worker involved) reads the same bytes with
+  // a plain C read on that hot (10 Hz) path. See teleop_rclc.c for the C
+  // side of this.
   const LINEAR_SCALE = 0.5;
   const ANGULAR_SCALE = 1.0;
   const keys = { w: false, a: false, s: false, d: false };

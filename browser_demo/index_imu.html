@@ -97,9 +97,8 @@
   // of a plain zenohd.
   Module.websocket.url = zenohTls ? 'wss://' : 'ws://';
 
-  // Same shared-memory pattern as index_teleop.html: main() runs on a
-  // pthread Web Worker with no window/DOM access, so the orientation
-  // listener lives here in plain JS on the real main thread, writing
+  // Same pattern as index_teleop.html: wasm code has no window/DOM access
+  // at all, so the orientation listener lives here in plain JS, writing
   // directly into wasm linear memory at the address imu_get_state_ptr()
   // exports. See imu_rclc.c.
   const LINEAR_SCALE = 0.5;   // m/s at a full forward/back tilt

@@ -94,10 +94,10 @@
   // of a plain zenohd.
   Module.websocket.url = zenohTls ? 'wss://' : 'ws://';
 
-  // Same shared-memory pattern as index_teleop.html: main() runs on a
-  // pthread Web Worker with no window/DOM/Geolocation access, so
-  // navigator.geolocation lives here on the page's real main thread,
-  // writing straight into wasm linear memory at the address
+  // Same pattern as index_teleop.html: wasm code has no
+  // window/DOM/Geolocation access at all, so navigator.geolocation lives
+  // here in plain JS, writing straight into wasm linear memory at the
+  // address
   // gps_get_state_ptr() exports once the runtime is ready. See
   // gps_rclc.c for the struct layout (latitude, longitude, altitude,
   // has_fix -- in that order, all but has_fix a double).

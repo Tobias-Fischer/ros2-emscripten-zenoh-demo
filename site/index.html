@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ROS 2 in WebAssembly, over zenoh</title>
-<meta name="description" content="A real ROS 2 rolling rclpy node — pthreads, numpy, and all — compiled to wasm32 and talking to zenoh, running live in your browser." />
+<meta name="description" content="A real ROS 2 rolling rclpy node — numpy and all, no pthreads or Asyncify — compiled to wasm32 and talking to zenoh, running live in your browser." />
 <link rel="stylesheet" href="v/%%ASSET_VERSION%%/style.css" />
 <script>window.__coiServiceWorkerUrl = "coi-serviceworker.js";</script>
 <script src="coi-serviceworker.js"></script>
@@ -18,9 +18,10 @@
     <p class="lede">
       Not a JavaScript re-implementation, not a bridge to a native process
       running somewhere else — an actual <code>rclpy</code> node, with real
-      pthreads, real numpy, and a real CPython interpreter, cross-compiled to
-      wasm32 and speaking <a href="https://zenoh.io/" target="_blank" rel="noopener">zenoh</a>
-      from inside your browser tab.
+      numpy and a real CPython interpreter, cross-compiled to wasm32 and
+      speaking <a href="https://zenoh.io/" target="_blank" rel="noopener">zenoh</a>
+      from inside your browser tab. No pthreads, no Asyncify — a single
+      wasm32 thread, cooperatively retrying instead of blocking.
     </p>
     <div class="hero-links">
       <a class="btn primary" href="#demos">Try the live demos ↓</a>
@@ -45,15 +46,15 @@
     <div class="pillrow">
       <span class="pill">rclc &amp; rclcpp</span>
       <span class="pill">rclpy + numpy</span>
-      <span class="pill">real pthreads (SharedArrayBuffer)</span>
+      <span class="pill">single-threaded — no pthreads, no Asyncify</span>
       <span class="pill">rmw_zenoh_pico</span>
       <span class="pill">zenoh over WebSocket</span>
       <span class="pill">~230 packages cross-built</span>
     </div>
     <div class="arch-list">
-      <div class="arch-item"><span class="num">01</span><div class="body"><b>Threads.</b> Emscripten's libc++ needs a real OS-style thread to ever wake a blocked <code>condition_variable</code> — so every package here is built with actual wasm32 threads (<code>-pthread</code>, <code>SharedArrayBuffer</code>), not the single-threaded default.</div></div>
+      <div class="arch-item"><span class="num">01</span><div class="body"><b>No threads.</b> Blocking on a real OS-style thread isn't an option in a plain (non-Asyncify, non-pthreads) wasm32 build — so nothing here ever blocks. Every network call (<code>zenoh-pico</code>'s WebSocket transport, underneath <code>rmw_zenoh_pico</code>) makes exactly one non-blocking attempt and returns immediately; retrying is driven from outside the wasm module instead — a JS interval ticking a poll function for the C/C++ demos, Python's own <code>await asyncio.sleep()</code> loop for rclpy and the notebook.</div></div>
       <div class="arch-item"><span class="num">02</span><div class="body"><b>Transport.</b> <code>rmw_zenoh_pico</code> gives ROS 2's standard <code>rcl</code>/<code>rclcpp</code>/<code>rclpy</code> layers a wasm-friendly RMW backed by zenoh-pico's WebSocket transport — talking to a normal <code>zenohd</code> router, not a custom protocol.</div></div>
-      <div class="arch-item"><span class="num">03</span><div class="body"><b>Python.</b> Stock <code>emscripten-forge</code> Python isn't pthread-enabled. This demo uses a custom CPython (<code>--enable-wasm-pthreads</code>) and a pthreads-patched <code>numpy</code>, with every extension module registered ahead-of-time via <code>PyImport_AppendInittab</code> instead of relying on runtime <code>dlopen</code>.</div></div>
+      <div class="arch-item"><span class="num">03</span><div class="body"><b>Python.</b> A stock, unmodified <code>emscripten-forge</code> CPython and <code>numpy</code> — no custom build needed, since nothing here relies on real OS threads anymore. <code>rclpy</code>'s own extension module, each message package's typesupport accessor, and <code>numpy</code>'s C extensions are <code>dlopen</code>'d the normal way, by Python's own <code>import</code> machinery, not statically pre-registered.</div></div>
       <div class="arch-item"><span class="num">04</span><div class="body"><b>Not just browsers.</b> <code>zenoh-pico</code> and <code>rmw_zenoh_pico</code> exist to put ROS 2 on genuinely constrained targets — microcontrollers talking micro-ROS over UART, BLE, or serial, the same niche as the ESP32/STM32-class boards this stack was originally built for. Wasm32 is really just one more "small, sandboxed target" for the exact same lightweight client; the C talker below would cross-compile to an actual microcontroller with far fewer changes than it took to get it running in a browser tab.</div></div>
     </div>
   </section>
@@ -206,7 +207,7 @@
       <tbody>
         <tr>
           <td><a href="https://github.com/RoboStack/vinca/pull/154" target="_blank" rel="noopener">vinca #154</a></td>
-          <td>RoboStack's cross-platform recipe generator: enables real wasm32 pthreads for every recipe (<code>-pthread</code>/<code>SharedArrayBuffer</code>) and fixes a <code>MODULE</code> vs. <code>SHARED</code> CMake flag mismatch that only shows up when targeting emscripten.</td>
+          <td>RoboStack's cross-platform recipe generator: makes <code>emscripten-wasm32</code> a fully non-blocking, single-threaded <code>ament_cmake</code> build target (no pthreads, no Asyncify) and fixes a <code>MODULE</code> vs. <code>SHARED</code> CMake flag mismatch that only shows up when targeting emscripten.</td>
         </tr>
         <tr>
           <td><a href="https://github.com/RoboStack/ros-rolling/pull/46" target="_blank" rel="noopener">ros-rolling #46</a></td>
@@ -214,11 +215,15 @@
         </tr>
         <tr>
           <td><a href="https://github.com/eclipse-zenoh/zenoh-pico/pull/1314" target="_blank" rel="noopener">zenoh-pico #1314</a></td>
-          <td>Upstream fixes needed for zenoh-pico's own emscripten/wasm32 platform target to build cleanly under this pipeline's threading and linking setup.</td>
+          <td>Rewrites zenoh-pico's emscripten/wasm32 transport (session open, read, send) to make exactly one non-blocking attempt per call instead of blocking or internally sleeping-and-retrying — needed once real threads were off the table.</td>
         </tr>
         <tr>
           <td><a href="https://github.com/esol-community/rmw_zenoh_pico/pull/7" target="_blank" rel="noopener">rmw_zenoh_pico #7</a></td>
-          <td>Fixes and gaps in the RMW layer itself, hit while getting a full <code>rclcpp</code>/<code>rclpy</code> node (not just zenoh-pico's own pub/sub API) working end-to-end.</td>
+          <td>Fixes and gaps in the RMW layer itself, hit while getting a full <code>rclcpp</code>/<code>rclpy</code> node (not just zenoh-pico's own pub/sub API) working end-to-end — including the non-blocking, resumable session-open state machine and the cooperative-polling rewrite of <code>rmw_wait()</code> that this whole no-threads approach depends on.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/esol-community/rmw_zenoh_pico/pull/9" target="_blank" rel="noopener">rmw_zenoh_pico #9</a></td>
+          <td>A separate, genuine upstream bug found while testing session teardown: a missing function call stored a code pointer where a heap data pointer was expected, crashing <code>rclpy.shutdown()</code> with a wasm trap.</td>
         </tr>
         <tr>
           <td><a href="https://github.com/micro-ROS/rosidl_typesupport_microxrcedds/pull/83" target="_blank" rel="noopener">rosidl_typesupport_microxrcedds #83</a></td>
