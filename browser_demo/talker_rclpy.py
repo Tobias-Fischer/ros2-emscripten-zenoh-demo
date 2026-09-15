@@ -2,7 +2,6 @@ import ctypes
 import rclpy
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
-from rclpy.event_handler import PublisherEventCallbacks
 from std_msgs.msg import String
 
 # Runtime-configurable zenoh connect address: rmw_zenoh_pico's compiled-in
@@ -77,24 +76,11 @@ def _try_init():
     # empty (no gid_cache), which it signaled with the wrong error code --
     # rclpy's create_event_handlers() only silently no-ops the *correct*
     # "unsupported" code, so the real default here used to raise a plain
-    # RCLError. Fixed upstream (rmw_zenoh_pico build 34 in
-    # ros-rolling-emscripten-zenoh's own patch) -- publisher construction
-    # itself no longer needs use_default_callbacks=False.
-    #
-    # Real QoS event/matching support landed in build 36 (same patch),
-    # which surfaced a separate, still-open gap: rclpy's *default*
-    # OFFERED_QOS_INCOMPATIBLE callback can fire spuriously here (rmw_take
-    # -- level total_count=0, last_policy_kind=INVALID -- confirmed not
-    # coming from this RMW's own graph-cache matching logic, which never
-    # runs for this topic at all since nothing subscribes to it) due to
-    # what looks like a stale entry in rcl's own wait-set event-array
-    # plumbing, not this patch's matching code. use_default_callbacks=False
-    # here is purely to keep this demo's own log clean of that spurious
-    # warning -- see rmw_zenoh_pico build 36's own rationale in
-    # ros-rolling-emscripten-zenoh/pkg_additional_info.yaml for the full
-    # writeup and root-cause notes.
-    pub = node.create_publisher(String, 'chatter_rclpy', 10,
-                                 event_callbacks=PublisherEventCallbacks(use_default_callbacks=False))
+    # RCLError, requiring an explicit use_default_callbacks=False just to
+    # construct a publisher at all. Fixed upstream (rmw_zenoh_pico build 34
+    # in ros-rolling-emscripten-zenoh's own patch) -- this is rclpy's
+    # ordinary, unmodified create_publisher() call now.
+    pub = node.create_publisher(String, 'chatter_rclpy', 10)
 
     node.create_timer(1.0, _timer_cb)
 
