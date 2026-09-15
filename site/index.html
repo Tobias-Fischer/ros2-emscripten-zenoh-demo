@@ -322,6 +322,10 @@ ros2 topic echo /chatter'</pre>
           <td>Typesupport codegen fixes hit while cross-building the message packages this demo depends on.</td>
         </tr>
         <tr>
+          <td><a href="https://github.com/micro-ROS/rosidl_typesupport_microxrcedds/pull/86" target="_blank" rel="noopener">rosidl_typesupport_microxrcedds #86</a></td>
+          <td>Two platform-independent bugs in the generated <code>cdr_deserialize()</code>: a genuine heap buffer overflow deserializing a <code>string</code> longer than its destination's current capacity (typically 1 byte, from a freshly-constructed message) — micro-CDR's own capacity check only sets an error flag rather than stopping the <code>memcpy</code>; and a sibling bug where an <em>unbounded</em> <code>string[]</code> sequence's own separate capacity (how many strings, not how many bytes) was never grown at all, so any non-empty unbounded string sequence failed to deserialize unconditionally. Both fixed by peeking the incoming size and growing the destination before the real deserialize call.</td>
+        </tr>
+        <tr>
           <td><a href="https://github.com/ros2/rcutils/pull/591" target="_blank" rel="noopener">rcutils #591</a></td>
           <td>A small fix found along the way while getting the base <code>rcl</code> stack building for emscripten-wasm32.</td>
         </tr>
