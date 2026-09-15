@@ -87,17 +87,6 @@ kernel loads this exact build, no special preloading needed.
 
 Full reproduction steps are in [`docs/demo_env.md`](docs/demo_env.md).
 
-## Known limitations
-
-- No real QoS event/matching support (wire-level notifications) in
-  `rmw_zenoh_pico`.
-
-`rosidl_typesupport_microxrcedds_cpp`'s codegen used to not handle ROS 2's
-newer auto-generated service/action "_Event" messages. That one's fixed
-now, not worked around — see `ros-rolling`'s
-`patch/ros-rolling-rosidl-typesupport-microxrcedds-cpp.patch` and the
-upstream PR linked from it.
-
 ## Reproducing it
 
 1. Build `ros-rolling`'s `emscripten-wasm32` + `rmw_zenoh_pico` recipe
