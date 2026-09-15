@@ -90,22 +90,12 @@ Full reproduction steps are in [`docs/demo_env.md`](docs/demo_env.md).
 ## Known limitations
 
 - No real QoS event/matching support (wire-level notifications) in
-  `rmw_zenoh_pico`. A separate bug used to make even the ordinary default
-  (no event callbacks requested) raise a plain `RCLError` instead of
-  silently no-oping — fixed upstream in this project's own
-  `rmw_zenoh_pico` patch (wrong error code returned when its QoS event
-  support table, permanently empty, found no match), so every demo now
-  uses `rclpy`/`rclc`'s unmodified defaults.
-- `rclpy`'s `TypeDescriptionService` genuinely constructs and runs fine —
-  an earlier look at the wrong upstream package (a stale local checkout
-  under a shared repo name hid `rcl`'s real implementation) wrongly
-  concluded `Node()` itself would hang. A real, narrower gap exists one
-  level in: a client actually waiting on a `~/get_type_description`
-  response never gets one back, even though the server side receives and
-  processes the request correctly — a general `rclpy` client-response-
-  delivery gap on this platform, not specific to this service. See the
-  site's [Known limitations](https://www.tobiasfischer.info/ros2-emscripten-zenoh-demo/#limits)
-  section for the full writeup.
+  `rmw_zenoh_pico`.
+- A client actually waiting on a `~/get_type_description` response
+  (`rclpy`'s `TypeDescriptionService`) never gets one back, even though
+  the server side receives and processes the request correctly — a
+  general `rclpy` client-response-delivery gap on this platform, not
+  specific to this service.
 
 `rosidl_typesupport_microxrcedds_cpp`'s codegen used to not handle ROS 2's
 newer auto-generated service/action "_Event" messages. That one's fixed
