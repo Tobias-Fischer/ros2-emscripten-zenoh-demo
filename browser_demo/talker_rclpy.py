@@ -1,6 +1,5 @@
 import rclpy
 from rclpy.node import Node
-from rclpy.event_handler import PublisherEventCallbacks
 from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String
 
@@ -47,16 +46,15 @@ def _try_init():
         print('talker_rclpy: Node() not ready yet (%s), retrying' % e, flush=True)
         return False
 
-    # rmw_zenoh_pico doesn't support QoS event handlers (RCL_PUBLISHER_
-    # OFFERED_INCOMPATIBLE_QOS etc.) -- it fails with a plain RCLError
-    # instead of the UnsupportedEventTypeError rclpy's own
-    # create_event_handlers() already catches and ignores, so the default
-    # callback has to be turned off explicitly. The same fix is applied to
-    # the internal /parameter_events publisher via a local rclpy/node.py
-    # patch (see demo_env/README).
-    pub = node.create_publisher(
-        String, 'chatter_rclpy', 10,
-        event_callbacks=PublisherEventCallbacks(use_default_callbacks=False))
+    # rmw_zenoh_pico's own QoS event support table used to be permanently
+    # empty (no gid_cache), which it signaled with the wrong error code --
+    # rclpy's create_event_handlers() only silently no-ops the *correct*
+    # "unsupported" code, so the real default here used to raise a plain
+    # RCLError, requiring an explicit use_default_callbacks=False just to
+    # construct a publisher at all. Fixed upstream (rmw_zenoh_pico build 34
+    # in ros-rolling-emscripten-zenoh's own patch) -- this is rclpy's
+    # ordinary, unmodified create_publisher() call now.
+    pub = node.create_publisher(String, 'chatter_rclpy', 10)
 
     node.create_timer(1.0, _timer_cb)
 
