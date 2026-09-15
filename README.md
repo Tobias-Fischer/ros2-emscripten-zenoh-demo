@@ -91,11 +91,6 @@ Full reproduction steps are in [`docs/demo_env.md`](docs/demo_env.md).
 
 - No real QoS event/matching support (wire-level notifications) in
   `rmw_zenoh_pico`.
-- A client actually waiting on a `~/get_type_description` response
-  (`rclpy`'s `TypeDescriptionService`) never gets one back, even though
-  the server side receives and processes the request correctly — a
-  general `rclpy` client-response-delivery gap on this platform, not
-  specific to this service.
 
 `rosidl_typesupport_microxrcedds_cpp`'s codegen used to not handle ROS 2's
 newer auto-generated service/action "_Event" messages. That one's fixed

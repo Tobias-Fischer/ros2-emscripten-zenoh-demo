@@ -284,7 +284,6 @@ ros2 topic echo /chatter'</pre>
     <h2 class="h">Known limitations</h2>
     <ul class="limits-list">
       <li>No real QoS event/matching support (wire-level notifications) in <code>rmw_zenoh_pico</code>.</li>
-      <li>A client calling <code>rclpy</code>'s <code>~/get_type_description</code> service (<code>TypeDescriptionService</code>) never gets a response back, even though the server receives and processes the request correctly — a general <code>rclpy</code> client-response-delivery gap on this platform, not specific to this service.</li>
     </ul>
   </section>
 
