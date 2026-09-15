@@ -17,6 +17,14 @@
     <a href="index_camera.html">camera</a>
     <a href="robot_view.html">virtual robot</a>
   </nav>
+  <div class="router-config">
+    <label>zenoh router:</label>
+    <input type="text" data-field="host" placeholder="127.0.0.1">
+    <span>:</span>
+    <input type="text" data-field="port" placeholder="7447">
+    <label><input type="checkbox" data-field="tls"> wss (TLS)</label>
+    <button type="button" data-router-apply>Apply &amp; reload</button>
+  </div>
   <h1>rclpy talker</h1>
   <p class="lede">The full stack: a real CPython interpreter, <code>rclpy</code>, and <code>numpy</code>, all inside wasm32 — publishes <code>std_msgs/String</code> on <code>chatter_rclpy</code> once a second. First load is a ~57&nbsp;MB download.</p>
   <div class="panel">
@@ -55,6 +63,33 @@
     // browsers require a matching response for.
     websocket: { subprotocol: null },
   };
+
+  // Runtime-configurable zenoh connect address -- same UI/URL mechanism as
+  // index_rclc.html (?zenoh_host=&zenoh_port=&zenoh_tls=1), wired to
+  // rclpy_boot.c's own zenoh_get_connect_host_buf()/_port_buf() (see that
+  // file and talker_rclpy.py for how the override actually gets applied
+  // before rclpy.init() runs). Leave both blank for the compiled-in default.
+  const zenohParams = new URLSearchParams(location.search);
+  const zenohHost = zenohParams.get('zenoh_host') || '';
+  const zenohPort = zenohParams.get('zenoh_port') || '';
+  const zenohTls = zenohParams.get('zenoh_tls') === '1';
+  document.querySelector('.router-config [data-field="host"]').value = zenohHost;
+  document.querySelector('.router-config [data-field="port"]').value = zenohPort;
+  document.querySelector('.router-config [data-field="tls"]').checked = zenohTls;
+  document.querySelector('.router-config [data-router-apply]').addEventListener('click', () => {
+    const host = document.querySelector('.router-config [data-field="host"]').value.trim();
+    const port = document.querySelector('.router-config [data-field="port"]').value.trim();
+    const tls = document.querySelector('.router-config [data-field="tls"]').checked;
+    const params = new URLSearchParams();
+    if (host) params.set('zenoh_host', host);
+    if (port) params.set('zenoh_port', port);
+    if (tls) params.set('zenoh_tls', '1');
+    location.search = params.toString();
+  });
+  // See index_rclc.html for why a non-default host needs this: mixed-content
+  // policy blocks plain ws:// from an https:// page to anything but
+  // 127.0.0.1/localhost, so route through Module.websocket.url instead.
+  Module.websocket.url = zenohTls ? 'wss://' : 'ws://';
   // rclpy_boot.c links no .so directly -- see build_rclpy.sh's own comment
   // -- so nothing is eagerly preloaded by default the way build_rclc.sh's
   // LIBS array is. Without this, the *first* dlopen() Python's own `import
@@ -118,6 +153,12 @@
 
   Module.onRuntimeInitialized = async () => {
     await preloadGlobalDylibs();
+    if (zenohHost) {
+      Module.stringToUTF8(zenohHost, Module.ccall('zenoh_get_connect_host_buf', 'number', [], []), 64);
+    }
+    if (zenohPort) {
+      Module.stringToUTF8(zenohPort, Module.ccall('zenoh_get_connect_port_buf', 'number', [], []), 8);
+    }
     // main() (rclpy_boot.c) runs rclpy.init() and defines tick(), but
     // doesn't call it or block -- rclpy_demo_tick() retries Node()
     // creation (and everything after) on every call until the zenoh

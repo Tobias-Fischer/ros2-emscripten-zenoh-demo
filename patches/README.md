@@ -3,23 +3,7 @@
 Local patches applied when assembling `demo_env/` (see
 [`../demo_env_build/build.sh`](../demo_env_build/build.sh)) that aren't
 upstreamed yet — workarounds for real gaps in the projects this demo
-depends on, not RoboStack-specific hacks. The `rmw_zenoh_pico` ones are
-also documented in the main [README](../README.md#known-limitations).
-
-- **`rclpy-node-rmw_zenoh_pico-workarounds.patch`** — two `rclpy/node.py`
-  changes:
-  - Disables the default publisher event callbacks on the internal
-    `/parameter_events` publisher every `Node` creates unconditionally.
-    `rmw_zenoh_pico` doesn't support publisher QoS event handlers and fails
-    with a plain `RCLError` instead of the `UnsupportedEventTypeError`
-    `rclpy` already catches and ignores elsewhere.
-  - Skips constructing `TypeDescriptionService` (also unconditional per
-    `Node`) — on `rmw_zenoh_pico` this doesn't error, it hangs.
-
-  Applied with `patch -p1` against the `rclpy` package's own
-  `site-packages` directory once `demo_env` is assembled (not a source
-  patch on any recipe — `rclpy`'s recipe doesn't need to change, just the
-  installed copy this demo runs against).
+depends on, not RoboStack-specific hacks.
 
 - **`pyjs-pyodide-polyfill-to_js-compat.patch`** — the JupyterLite kernel
   (`xeus-python`, via `emscripten-forge/pyjs`'s `pyodide.ffi` polyfill) has
@@ -37,7 +21,7 @@ also documented in the main [README](../README.md#known-limitations).
   matching what real Pyodide does.
 
   Applied with `patch -p1` against the `pyjs` package's own `site-packages`
-  directory, same as the `rclpy` patch above.
+  directory.
 
 - **`xeus_python_shell-urllib-patch-robustness.patch`** — one
   `xeus_python_shell/shell.py` change: wraps its own unconditional
@@ -56,7 +40,7 @@ also documented in the main [README](../README.md#known-limitations).
   the whole kernel over, whatever keeps causing it.
 
   Applied with `patch -p1` against the `xeus_python_shell` package's own
-  `site-packages` directory, same as the other two patches above.
+  `site-packages` directory, same as the other patches above.
 
 `python`/`numpy` themselves are stock, unmodified `emscripten-forge`
 builds — no custom pthreads build needed anymore (see the main

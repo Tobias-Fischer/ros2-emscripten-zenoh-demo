@@ -1,7 +1,33 @@
+import ctypes
 import rclpy
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
 from std_msgs.msg import String
+
+# Runtime-configurable zenoh connect address: rmw_zenoh_pico's compiled-in
+# default (127.0.0.1:7447) is only a default, overridden here via
+# rmw_zenoh_pico_set_unicast() -- same mechanism talker_rclc.c uses, and it
+# has to run before rclpy.init() opens the session, for the same reason.
+# Unlike talker_rclc.c, rclpy_boot.c never links librmw_zenoh_pico.so
+# directly (Python's own `import rclpy` chain dlopen()s it lazily instead),
+# so this calls it via ctypes -- confirmed live that ctypes.CDLL() and
+# Python's own dlopen()-based import share the same loaded instance (its
+# static connect-address globals), not a separate copy. index_rclpy.html
+# writes the host/port into rclpy_boot.c's own exported buffers (via
+# ccall) before Module.callMain() runs this file; left blank, the buffers
+# read back empty and this is a no-op.
+_boot = ctypes.CDLL(None)
+_boot.zenoh_get_connect_host_buf.restype = ctypes.c_char_p
+_boot.zenoh_get_connect_port_buf.restype = ctypes.c_char_p
+_zenoh_host = _boot.zenoh_get_connect_host_buf()
+_zenoh_port = _boot.zenoh_get_connect_port_buf()
+if _zenoh_host:
+    _rmw = ctypes.CDLL('librmw_zenoh_pico.so')
+    _rmw.rmw_zenoh_pico_set_unicast.argtypes = [ctypes.c_char_p] * 4
+    _rmw.rmw_zenoh_pico_set_unicast.restype = None
+    _rmw.rmw_zenoh_pico_set_unicast(_zenoh_host, _zenoh_port or b'7447', None, None)
+    print('talker_rclpy: zenoh connect address overridden to',
+          _zenoh_host, _zenoh_port or b'7447', flush=True)
 
 print("talker_rclpy: rclpy.init()", flush=True)
 # install_signal_handlers's default (SignalHandlerOptions.ALL) spawns a real

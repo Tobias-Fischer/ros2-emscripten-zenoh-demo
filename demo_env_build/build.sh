@@ -34,22 +34,18 @@ cd "$HERE"
 rm -rf .pixi pixi.lock
 pixi install
 
-# rmw_zenoh_pico gaps this pipeline works around locally, not upstream yet
-# (see ../README.md's Known limitations) — not present in the packaged
-# rclpy, so patch it here every time the env is (re)assembled.
+# pyjs/xeus_python_shell gaps this pipeline works around locally, not
+# upstream yet (see ../patches/README.md) — not present in the packaged
+# pyjs, so patch it here every time the env is (re)assembled.
 #
 # -N (ignore already-applied patches) + `|| true` on all three patches
-# below: this session's rclpy/pyjs rebuilds now sometimes already carry
-# one of these fixes upstream in the built package itself (e.g. the
-# rclpy-node patch's exact hunk was already present verbatim in a rebuilt
-# ros2-rclpy), which makes `patch` unable to match context and fall back
-# to an interactive "File to patch:" prompt -- fatal under `set -e` with
-# no stdin attached. -N detects the already-applied case cleanly instead
-# of erroring; `|| true` is a safety net for any other spurious mismatch,
-# since none of these patches are load-bearing for a build that already
-# has the fix baked in.
-patch -p1 -N -d .pixi/envs/default/lib/python3.13/site-packages \
-  < "$HERE/../patches/rclpy-node-rmw_zenoh_pico-workarounds.patch" || true
+# below: this session's rebuilds now sometimes already carry one of these
+# fixes upstream in the built package itself, which makes `patch` unable
+# to match context and fall back to an interactive "File to patch:"
+# prompt -- fatal under `set -e` with no stdin attached. -N detects the
+# already-applied case cleanly instead of erroring; `|| true` is a safety
+# net for any other spurious mismatch, since none of these patches are
+# load-bearing for a build that already has the fix baked in.
 
 # pyjs's pyodide.ffi.to_js() polyfill doesn't accept dict_converter (or
 # other) real-Pyodide kwargs -- breaks pyodide_http on import, which

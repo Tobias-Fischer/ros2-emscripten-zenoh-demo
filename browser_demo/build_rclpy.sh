@@ -99,7 +99,7 @@ em++ \
   -sSOCKET_DEBUG=1 \
   -sEXIT_RUNTIME=0 \
   -sINVOKE_RUN=0 \
-  -sEXPORTED_RUNTIME_METHODS=ccall,callMain,loadDynamicLibrary \
+  -sEXPORTED_RUNTIME_METHODS=ccall,callMain,loadDynamicLibrary,stringToUTF8 \
   -s DEFAULT_LIBRARY_FUNCS_TO_INCLUDE=emscripten_random \
   -s ALLOW_MEMORY_GROWTH=1 \
   -s STACK_SIZE=5MB \

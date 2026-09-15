@@ -80,15 +80,18 @@ so there's no pthreads-ABI reason for a custom Python build anymore:
 ROS_ROLLING_OUTPUT=/path/to/ros-rolling/output ./demo_env_build/build.sh
 ```
 
-It also applies [`../patches/rclpy-node-rmw_zenoh_pico-workarounds.patch`](../patches/README.md)
-to the installed `rclpy` afterwards — two real `rmw_zenoh_pico` gaps
-(disabling default publisher QoS-event callbacks, and not constructing
-`TypeDescriptionService`) that aren't upstreamed. `Node(...,
-enable_rosout=False, start_parameter_services=False)` sidesteps two more
-unconditional-by-default `rclpy` features (rosout logging, parameter
-get/set/list services) that would otherwise pull in more of the same
-typesupport gap — pass those flags in your own node rather than patching
-further.
+It also applies three [`../patches/`](../patches/README.md) fixes to the
+JupyterLite kernel's `pyjs`/`xeus_python_shell` afterwards — real gaps in
+those projects that aren't upstreamed yet. `rclpy` itself needs no local
+patching anymore: both gaps it used to work around here (disabling
+default publisher QoS-event callbacks, and not constructing
+`TypeDescriptionService`) were actually bugs in `rmw_zenoh_pico`, fixed at
+the source in `ros-rolling`'s own patch instead (see the main
+[README](../README.md#known-limitations)). `Node(..., enable_rosout=False,
+start_parameter_services=False)` still sidesteps two unconditional-by-
+default `rclpy` features (rosout logging, parameter get/set/list
+services) that pull in a still-open typesupport gap — pass those flags in
+your own node rather than patching further.
 
 Leaves the finished environment symlinked at `../demo_env`.
 

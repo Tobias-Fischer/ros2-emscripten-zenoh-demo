@@ -89,19 +89,23 @@ Full reproduction steps are in [`docs/demo_env.md`](docs/demo_env.md).
 
 ## Known limitations
 
-Two real `rmw_zenoh_pico` gaps, found but not fixed here (not root-caused
-on the `rmw_zenoh_pico` side yet — worth a closer look if this gets taken
-further):
-
-- No support for publisher/subscriber QoS event handlers
-  (`RCL_PUBLISHER_OFFERED_INCOMPATIBLE_QOS` etc.) — fails with a plain
-  `RCLError` instead of the `UnsupportedEventTypeError` `rclpy` already
-  handles gracefully. Worked around by disabling default event callbacks
-  on every publisher this demo creates.
-- `rclpy`'s `TypeDescriptionService` (an unconditional per-`Node` RCL
-  service) doesn't error, it hangs. Worked around by not constructing it
-  (a two-line local patch to `rclpy/node.py`, documented in
-  [`docs/demo_env.md`](docs/demo_env.md)).
+- No real QoS event/matching support (wire-level notifications) in
+  `rmw_zenoh_pico`. A separate bug used to make even the ordinary default
+  (no event callbacks requested) raise a plain `RCLError` instead of
+  silently no-oping — fixed upstream in this project's own
+  `rmw_zenoh_pico` patch (wrong error code returned when its QoS event
+  support table, permanently empty, found no match), so every demo now
+  uses `rclpy`/`rclc`'s unmodified defaults.
+- `rclpy`'s `TypeDescriptionService` genuinely constructs and runs fine —
+  an earlier look at the wrong upstream package (a stale local checkout
+  under a shared repo name hid `rcl`'s real implementation) wrongly
+  concluded `Node()` itself would hang. A real, narrower gap exists one
+  level in: a client actually waiting on a `~/get_type_description`
+  response never gets one back, even though the server side receives and
+  processes the request correctly — a general `rclpy` client-response-
+  delivery gap on this platform, not specific to this service. See the
+  site's [Known limitations](https://www.tobiasfischer.info/ros2-emscripten-zenoh-demo/#limits)
+  section for the full writeup.
 
 `rosidl_typesupport_microxrcedds_cpp`'s codegen used to not handle ROS 2's
 newer auto-generated service/action "_Event" messages. That one's fixed

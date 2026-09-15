@@ -35,6 +35,29 @@
 #include <stdlib.h>
 #include <emscripten.h>
 
+// Runtime-configurable zenoh connect address, same mechanism as
+// talker_rclc.c's zenoh_connect_host/port: main() is linked with
+// -sINVOKE_RUN=0 so index_rclpy.html can write into these buffers (via
+// ccall) before calling Module.callMain(), which runs talker_rclpy.py
+// below. talker_rclpy.py reads them back via ctypes.CDLL(None) (this
+// executable's own exported symbols -- -sMAIN_MODULE=1 exports everything
+// unconditionally, no EXPORTED_FUNCTIONS entry needed) and passes them to
+// rmw_zenoh_pico_set_unicast() itself, since this file -- unlike
+// talker_rclc.c -- never links librmw_zenoh_pico.so directly (Python's
+// own `import rclpy` chain dlopen()s it lazily). Left blank (the default),
+// talker_rclpy.py's override is a no-op and rmw_zenoh_pico's compiled-in
+// default (127.0.0.1:7447) is used, matching index_rclc.html's behavior.
+#define ZENOH_HOST_MAX 64
+#define ZENOH_PORT_MAX 8
+static char zenoh_connect_host[ZENOH_HOST_MAX] = "";
+static char zenoh_connect_port[ZENOH_PORT_MAX] = "";
+
+EMSCRIPTEN_KEEPALIVE
+char * zenoh_get_connect_host_buf(void) { return zenoh_connect_host; }
+
+EMSCRIPTEN_KEEPALIVE
+char * zenoh_get_connect_port_buf(void) { return zenoh_connect_port; }
+
 // talker_rclpy.py does rclpy.init() + defines a tick() function, but
 // doesn't call it -- rmw_zenoh_pico's z_open() can't block for its
 // WebSocket handshake, so (same as talker_rclc.c) a single blocking
