@@ -314,6 +314,10 @@ ros2 topic echo /chatter'</pre>
           <td>A separate, genuine upstream bug found while testing session teardown: a missing function call stored a code pointer where a heap data pointer was expected, crashing <code>rclpy.shutdown()</code> with a wasm trap.</td>
         </tr>
         <tr>
+          <td><a href="https://github.com/esol-community/rmw_zenoh_pico/pull/12" target="_blank" rel="noopener">rmw_zenoh_pico #12</a></td>
+          <td>Real QoS event/matching support: a session-wide liveliness subscriber discovers other peers' publishers/subscriptions on the same topic and checks QoS compatibility, driving the previously-dead <code>MATCHED</code>/<code>QOS_INCOMPATIBLE</code> events and <code>count_matched_*()</code> APIs. Also fixes two bugs this was the first thing to exercise hard enough to hit: <code>rmw_wait()</code> was reading the wrong pointer out of its event array (a struct handle, misread as the RMW-internal manager it actually points to via <code>-&gt;data</code>), so every registered QoS event looked permanently "ready" regardless of whether anything real happened — the root cause of an intermittent <code>rclpy</code> executor crash this project hit; and <code>rmw_take_event()</code> could report a real change on one event type as if it belonged to an unrelated sibling event sharing the same manager.</td>
+        </tr>
+        <tr>
           <td><a href="https://github.com/micro-ROS/rosidl_typesupport_microxrcedds/pull/83" target="_blank" rel="noopener">rosidl_typesupport_microxrcedds #83</a></td>
           <td>Typesupport codegen fixes hit while cross-building the message packages this demo depends on.</td>
         </tr>
