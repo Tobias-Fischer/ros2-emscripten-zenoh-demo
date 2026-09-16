@@ -336,6 +336,37 @@ ros2 topic echo /chatter'</pre>
       </tbody>
     </table>
     </div>
+
+    <h3 class="section-title">Alternative: standard (Rust) zenoh</h3>
+    <p class="section-lede">
+      Everything above uses <code>zenoh-pico</code> (the small-footprint C client) — the right
+      choice for a genuinely constrained, no-threads wasm32 build today. A parallel effort is
+      exploring whether the full <em>Rust</em> <code>zenoh</code> crate can also run on
+      <code>wasm32-unknown-emscripten</code>, which was verified end-to-end (session open,
+      pub/sub, and queryable/get, all against a real native <code>zenohd</code>) but currently
+      depends on three separate, not-yet-merged upstream PRs stacked on each other. This demo
+      stays on zenoh-pico until that chain lands and a wasm32-capable <code>rmw_zenoh</code>
+      (the Rust-based RMW, distinct from <code>rmw_zenoh_pico</code>) exists to put it to use.
+    </p>
+    <div class="table-scroll">
+    <table class="sources-table">
+      <thead><tr><th>Repo</th><th>What it adds</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><a href="https://github.com/tokio-rs/mio/pull/2010" target="_blank" rel="noopener">mio #2010</a></td>
+          <td>A single-threaded, always-non-blocking <code>poll(2)</code>-based selector for Emscripten builds without atomics/pthreads — stacked on Guy Bedford's own <a href="https://github.com/tokio-rs/mio/pull/1969" target="_blank" rel="noopener">mio #1969</a>, which added the pthreads-based epoll selector this complements.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/tokio-rs/tokio/pull/8489" target="_blank" rel="noopener">tokio #8489</a></td>
+          <td><code>Runtime::pump_once()</code>: a single non-looping scheduler pass for the same no-threads case, meant to be driven from an external, JS-driven loop instead of <code>block_on()</code>. Depends on mio #2010.</td>
+        </tr>
+        <tr>
+          <td><a href="https://github.com/eclipse-zenoh/zenoh/pull/2790" target="_blank" rel="noopener">zenoh #2790–#2799</a></td>
+          <td>Ten small, stacked PRs adding wasm32 support crate-by-crate through the zenoh workspace, plus an unrelated <code>Session::open()</code> fix and a socket2 0.5→0.6 upgrade found along the way.</td>
+        </tr>
+      </tbody>
+    </table>
+    </div>
   </section>
 
   <footer>
