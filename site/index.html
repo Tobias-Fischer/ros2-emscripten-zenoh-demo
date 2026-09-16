@@ -339,14 +339,15 @@ ros2 topic echo /chatter'</pre>
 
     <h3 class="section-title">Alternative: standard (Rust) zenoh</h3>
     <p class="section-lede">
-      Everything above uses <code>zenoh-pico</code> (the small-footprint C client) — the right
-      choice for a genuinely constrained, no-threads wasm32 build today. A parallel effort is
-      exploring whether the full <em>Rust</em> <code>zenoh</code> crate can also run on
-      <code>wasm32-unknown-emscripten</code>, which was verified end-to-end (session open,
-      pub/sub, and queryable/get, all against a real native <code>zenohd</code>) but currently
-      depends on three separate, not-yet-merged upstream PRs stacked on each other. This demo
-      stays on zenoh-pico until that chain lands and a wasm32-capable <code>rmw_zenoh</code>
-      (the Rust-based RMW, distinct from <code>rmw_zenoh_pico</code>) exists to put it to use.
+      Everything above uses <code>zenoh-pico</code> (the small-footprint C client) — currently
+      held together, as the table above shows, entirely by unmerged upstream PRs the RoboStack
+      recipe pipeline patches in directly. A parallel effort is exploring whether the full
+      <em>Rust</em> <code>zenoh</code> crate can run on <code>wasm32-unknown-emscripten</code>
+      instead: verified end-to-end at the crate level (session open, pub/sub, and queryable/get,
+      all against a real native <code>zenohd</code>) but depending on three more not-yet-merged
+      PRs stacked on each other, and — unlike zenoh-pico — with no wasm32-capable
+      <code>rmw_zenoh</code> (the Rust-based RMW, distinct from <code>rmw_zenoh_pico</code>) yet
+      to actually put it to use in a ROS 2 node. That's the next thing being explored.
     </p>
     <div class="table-scroll">
     <table class="sources-table">
