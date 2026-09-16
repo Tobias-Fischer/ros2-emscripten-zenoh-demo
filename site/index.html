@@ -343,11 +343,13 @@ ros2 topic echo /chatter'</pre>
       held together, as the table above shows, entirely by unmerged upstream PRs the RoboStack
       recipe pipeline patches in directly. A parallel effort is exploring whether the full
       <em>Rust</em> <code>zenoh</code> crate can run on <code>wasm32-unknown-emscripten</code>
-      instead: verified end-to-end at the crate level (session open, pub/sub, and queryable/get,
-      all against a real native <code>zenohd</code>) but depending on three more not-yet-merged
-      PRs stacked on each other, and — unlike zenoh-pico — with no wasm32-capable
-      <code>rmw_zenoh</code> (the Rust-based RMW, distinct from <code>rmw_zenoh_pico</code>) yet
-      to actually put it to use in a ROS 2 node. That's the next thing being explored.
+      instead, depending on three more not-yet-merged PRs stacked on each other. So far a real
+      build opens a session against a native <code>zenohd</code> and publishes a first message,
+      but repeated publishes after that don't reliably reach the wire — a reproducible bug in the
+      TX pipeline's wake-up path still being tracked down — and, unlike zenoh-pico, there's no
+      wasm32-capable <code>rmw_zenoh</code> (the Rust-based RMW, distinct from
+      <code>rmw_zenoh_pico</code>) yet to actually put it to use in a ROS 2 node. Both are the
+      next things being worked on.
     </p>
     <div class="table-scroll">
     <table class="sources-table">
